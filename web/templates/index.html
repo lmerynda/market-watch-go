@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.title}}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-graph-up"></i>
+                Market Watch - Volume Tracker
+            </span>
+            <div class="d-flex align-items-center">
+                <span id="market-status" class="badge bg-secondary me-3">Market Status: Unknown</span>
+                <span id="last-update" class="text-light small">Last Update: --</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Controls -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h5 class="card-title mb-0">Volume Tracking Dashboard</h5>
+                                <small class="text-muted">Real-time volume data for tracked symbols</small>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="btn-group me-2" role="group">
+                                    <input type="radio" class="btn-check" name="timeRange" id="range-1h" value="1H">
+                                    <label class="btn btn-outline-primary btn-sm" for="range-1h">1H</label>
+
+                                    <input type="radio" class="btn-check" name="timeRange" id="range-4h" value="4H">
+                                    <label class="btn btn-outline-primary btn-sm" for="range-4h">4H</label>
+
+                                    <input type="radio" class="btn-check" name="timeRange" id="range-1d" value="1D"
+                                        checked>
+                                    <label class="btn btn-outline-primary btn-sm" for="range-1d">1D</label>
+
+                                    <input type="radio" class="btn-check" name="timeRange" id="range-1w" value="1W">
+                                    <label class="btn btn-outline-primary btn-sm" for="range-1w">1W</label>
+                                </div>
+                                <button id="refresh-btn" class="btn btn-success btn-sm">
+                                    <span id="refresh-icon" class="bi bi-arrow-clockwise"></span>
+                                    <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none"
+                                        role="status"></span>
+                                    <span id="refresh-text">Refresh</span>
+                                </button>
+                                <button id="cancel-refresh-btn" class="btn btn-outline-secondary btn-sm d-none">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </button>
+                                <button id="force-collection-btn" class="btn btn-warning btn-sm">
+                                    <i class="bi bi-download"></i> Force Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Volume Stats Summary -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Volume Statistics Summary</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row" id="volume-stats">
+                            <!-- Volume stats will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="row">
+            {{range $index, $symbol := .symbols}}
+            <div class="col-lg-6 col-xl-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">{{$symbol}} Volume</h6>
+                        <div class="d-flex align-items-center">
+                            <span id="{{$symbol}}-current-volume" class="badge bg-primary me-2">--</span>
+                            <span id="{{$symbol}}-volume-change" class="badge bg-secondary">--</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="chart-{{$symbol}}" width="400" height="300"></canvas>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Last: <span id="{{$symbol}}-last-price">--</span> |
+                                Volume: <span id="{{$symbol}}-last-volume">--</span> |
+                                Ratio: <span id="{{$symbol}}-volume-ratio">--</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <!-- Collection Status -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Collection Status</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 id="successful-runs" class="text-success">--</h4>
+                                    <small class="text-muted">Successful Runs</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 id="failed-runs" class="text-danger">--</h4>
+                                    <small class="text-muted">Failed Runs</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 id="collected-today" class="text-info">--</h4>
+                                    <small class="text-muted">Collected Today</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <h4 id="next-run" class="text-warning">--</h4>
+                                    <small class="text-muted">Next Run</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div id="collection-status" class="alert alert-info">
+                                    Status: <span id="collection-running">Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container">
+        <!-- Toasts will be added here dynamically -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"></script>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+
+</html>

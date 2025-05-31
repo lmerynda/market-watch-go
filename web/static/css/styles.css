@@ -1,0 +1,438 @@
+/* Market Watch Dashboard Styles */
+
+:root {
+    --primary-color: #007bff;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --dark-color: #343a40;
+    --light-color: #f8f9fa;
+    --border-radius: 0.375rem;
+    --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f5f5f5;
+    font-size: 14px;
+}
+
+/* Custom Chart Container */
+.chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+}
+
+.chart-container canvas {
+    max-height: 100%;
+    max-width: 100%;
+}
+
+/* Card Enhancements */
+.card {
+    border: none;
+    box-shadow: var(--box-shadow);
+    border-radius: var(--border-radius);
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background-color: white;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    font-weight: 600;
+}
+
+/* Volume Stats Cards */
+.volume-stat-card {
+    text-align: center;
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    background: white;
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.volume-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.volume-stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.volume-stat-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.volume-stat-change {
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.volume-stat-change.positive {
+    color: var(--success-color);
+}
+
+.volume-stat-change.negative {
+    color: var(--danger-color);
+}
+
+.volume-stat-change.neutral {
+    color: var(--info-color);
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.market-open {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-badge.market-closed {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-badge.collection-running {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+/* Volume Change Indicators */
+.volume-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.volume-change.up {
+    color: var(--success-color);
+}
+
+.volume-change.down {
+    color: var(--danger-color);
+}
+
+.volume-change.flat {
+    color: var(--info-color);
+}
+
+.volume-change::before {
+    content: "";
+    width: 0;
+    height: 0;
+    border-style: solid;
+}
+
+.volume-change.up::before {
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 6px solid var(--success-color);
+}
+
+.volume-change.down::before {
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid var(--danger-color);
+}
+
+.volume-change.flat::before {
+    width: 8px;
+    height: 2px;
+    background-color: var(--info-color);
+    border: none;
+}
+
+/* Button Enhancements */
+.btn {
+    font-weight: 500;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-group .btn-check:checked+.btn {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.loading::after {
+    content: "Loading...";
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+/* Responsive Chart Containers */
+@media (max-width: 768px) {
+    .chart-container {
+        height: 200px;
+    }
+
+    .card-header h6 {
+        font-size: 0.875rem;
+    }
+
+    .volume-stat-value {
+        font-size: 1.25rem;
+    }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Toast Styling */
+.toast {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.toast-success {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.toast-error {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.toast-warning {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+/* Market Status Indicator */
+.market-status {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.market-status::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentColor;
+}
+
+.market-status.open::before {
+    background-color: var(--success-color);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.market-status.closed::before {
+    background-color: var(--danger-color);
+}
+
+/* Chart Legend Custom Styles */
+.chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.chart-legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+/* Error States */
+.error-state {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+
+.error-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Collection Status Indicators */
+.collection-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.collection-indicator.active {
+    background-color: #cce5ff;
+    border-color: #99d3ff;
+    color: #004085;
+}
+
+.collection-indicator.error {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+/* Utility Classes */
+.text-gradient {
+    background: linear-gradient(45deg, var(--primary-color), var(--info-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.border-start-primary {
+    border-left: 3px solid var(--primary-color) !important;
+}
+
+.border-start-success {
+    border-left: 3px solid var(--success-color) !important;
+}
+
+.border-start-danger {
+    border-left: 3px solid var(--danger-color) !important;
+}
+
+.border-start-warning {
+    border-left: 3px solid var(--warning-color) !important;
+}
+
+/* Loading State Styles */
+#refresh-btn:disabled {
+    opacity: 0.8;
+}
+
+#refresh-spinner {
+    width: 1rem;
+    height: 1rem;
+}
+
+#cancel-refresh-btn {
+    transition: all 0.2s ease-in-out;
+}
+
+#cancel-refresh-btn:hover {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+/* Smooth transitions for loading states */
+.btn .spinner-border {
+    transition: opacity 0.2s ease-in-out;
+}
+
+.btn-icon-transition {
+    transition: all 0.2s ease-in-out;
+}
