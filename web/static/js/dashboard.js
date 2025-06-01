@@ -3,7 +3,7 @@ class MarketWatchDashboard {
     constructor() {
         this.charts = {};
         this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
-        this.currentTimeRange = '1D';
+        this.currentTimeRange = '1W';
         this.refreshInterval = null;
         this.updateInterval = 30000; // 30 seconds
         this.isLoading = false; // Track loading state
@@ -12,9 +12,15 @@ class MarketWatchDashboard {
         this.init();
     }
 
-    init() {
+    async init() {
         this.setupEventListeners();
         this.initializeCharts();
+        
+        // Add a small delay to ensure DOM is fully rendered
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        this.syncTimeRangeFromHTML();
+        console.log('Dashboard initialized with time range:', this.currentTimeRange);
         this.loadDashboardData();
         this.startAutoRefresh();
     }
@@ -47,6 +53,21 @@ class MarketWatchDashboard {
         window.addEventListener('resize', () => {
             this.resizeCharts();
         });
+    }
+
+    syncTimeRangeFromHTML() {
+        // Debug: log all radio buttons
+        const allRadios = document.querySelectorAll('input[name="timeRange"]');
+        console.log('All time range radio buttons:', Array.from(allRadios).map(r => ({ id: r.id, value: r.value, checked: r.checked })));
+        
+        // Read the checked radio button value to sync with HTML state
+        const checkedRadio = document.querySelector('input[name="timeRange"]:checked');
+        if (checkedRadio) {
+            this.currentTimeRange = checkedRadio.value;
+            console.log('Synced time range from HTML:', this.currentTimeRange);
+        } else {
+            console.warn('No checked radio button found, keeping default:', this.currentTimeRange);
+        }
     }
 
     initializeCharts() {
@@ -98,7 +119,8 @@ class MarketWatchDashboard {
                                     displayFormats: {
                                         minute: 'HH:mm',
                                         hour: 'HH:mm',
-                                        day: 'MMM DD'
+                                        day: 'MMM DD',
+                                        week: 'MMM DD'
                                     }
                                 },
                                 grid: {
@@ -195,8 +217,9 @@ class MarketWatchDashboard {
 
     async loadChartData(symbol) {
         try {
-            console.log(`Loading chart data for ${symbol}...`);
-            const response = await fetch(`/api/volume/${symbol}/chart?range=${this.currentTimeRange}`, {
+            const url = `/api/volume/${symbol}/chart?range=${this.currentTimeRange}`;
+            console.log(`Loading chart data for ${symbol} with URL: ${url}`);
+            const response = await fetch(url, {
                 signal: this.loadingController?.signal
             });
             const data = await response.json();
@@ -214,10 +237,15 @@ class MarketWatchDashboard {
                 this.charts[symbol].data.datasets[0].data = chartData;
                 this.charts[symbol].update('none');
                 
-                // Update symbol info
-                this.updateSymbolInfo(symbol, chartData);
+                // Update symbol info if we have data
+                if (chartData.length > 0) {
+                    this.updateSymbolInfo(symbol, chartData);
+                }
             } else {
                 console.warn(`No chart data for ${symbol}:`, data);
+                // Clear the chart if no data
+                this.charts[symbol].data.datasets[0].data = [];
+                this.charts[symbol].update('none');
             }
         } catch (error) {
             if (error.name === 'AbortError') throw error; // Re-throw abort errors
@@ -476,7 +504,10 @@ class MarketWatchDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    window.dashboard = new MarketWatchDashboard();
+    // Small delay to ensure all elements are rendered
+    setTimeout(() => {
+        window.dashboard = new MarketWatchDashboard();
+    }, 100);
 });
 
 // Cleanup on page unload

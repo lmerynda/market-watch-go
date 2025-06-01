@@ -230,29 +230,26 @@ func (vh *VolumeHandler) GetChartData(c *gin.Context) {
 	}
 
 	// Parse query parameters for time range
-	rangeStr := c.DefaultQuery("range", "1D")
+	rangeStr := c.DefaultQuery("range", "1W")
 
 	var from, to time.Time
 	now := time.Now()
 
 	switch rangeStr {
-	case "1H":
-		from = now.Add(-1 * time.Hour)
-		to = now
-	case "4H":
-		from = now.Add(-4 * time.Hour)
-		to = now
 	case "1D":
 		from = now.AddDate(0, 0, -1)
 		to = now
 	case "1W":
 		from = now.AddDate(0, 0, -7)
 		to = now
+	case "2W":
+		from = now.AddDate(0, 0, -14)
+		to = now
 	case "1M":
 		from = now.AddDate(0, -1, 0)
 		to = now
 	default:
-		from = now.AddDate(0, 0, -1)
+		from = now.AddDate(0, 0, -7)
 		to = now
 	}
 
@@ -274,7 +271,7 @@ func (vh *VolumeHandler) GetChartData(c *gin.Context) {
 	}
 
 	// Convert to chart data format
-	var chartPoints []models.ChartDataPoint
+	chartPoints := make([]models.ChartDataPoint, 0)
 	for _, vd := range data {
 		chartPoints = append(chartPoints, models.ChartDataPoint{
 			X: vd.Timestamp.Format(time.RFC3339),

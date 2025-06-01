@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"market-watch-go/internal/config"
@@ -125,7 +126,17 @@ func main() {
 	// Load HTML templates
 	router.LoadHTMLGlob("web/templates/*")
 
-	// Static files
+	// Add middleware to disable caching for static files in development
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+		}
+		c.Next()
+	})
+
+	// Static files with no-cache headers for development
 	router.Static("/static", "web/static")
 
 	// Dashboard routes

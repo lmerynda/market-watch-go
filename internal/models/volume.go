@@ -176,16 +176,6 @@ func GetCommonTimeRanges() []TimeRange {
 	now := time.Now()
 	return []TimeRange{
 		{
-			Start: now.Add(-1 * time.Hour),
-			End:   now,
-			Label: "1H",
-		},
-		{
-			Start: now.Add(-4 * time.Hour),
-			End:   now,
-			Label: "4H",
-		},
-		{
 			Start: now.AddDate(0, 0, -1),
 			End:   now,
 			Label: "1D",
@@ -194,6 +184,11 @@ func GetCommonTimeRanges() []TimeRange {
 			Start: now.AddDate(0, 0, -7),
 			End:   now,
 			Label: "1W",
+		},
+		{
+			Start: now.AddDate(0, 0, -14),
+			End:   now,
+			Label: "2W",
 		},
 		{
 			Start: now.AddDate(0, -1, 0),
