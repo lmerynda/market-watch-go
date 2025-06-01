@@ -2,7 +2,7 @@
 class MarketWatchDashboard {
     constructor() {
         this.charts = {};
-        this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
+        this.symbols = [];
         this.currentTimeRange = '1W';
         this.refreshInterval = null;
         this.updateInterval = 30000; // 30 seconds
@@ -13,6 +13,7 @@ class MarketWatchDashboard {
     }
 
     async init() {
+        await this.loadSymbols();
         this.setupEventListeners();
         this.initializeCharts();
         
@@ -23,6 +24,26 @@ class MarketWatchDashboard {
         console.log('Dashboard initialized with time range:', this.currentTimeRange);
         this.loadDashboardData();
         this.startAutoRefresh();
+    }
+
+    async loadSymbols() {
+        try {
+            const response = await fetch('/api/symbols');
+            const data = await response.json();
+            
+            if (response.ok) {
+                this.symbols = data.symbols.map(s => s.symbol);
+                console.log('Loaded symbols:', this.symbols);
+            } else {
+                console.error('Failed to load symbols:', data.message);
+                // Fallback to default symbols
+                this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
+            }
+        } catch (error) {
+            console.error('Error loading symbols:', error);
+            // Fallback to default symbols
+            this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
+        }
     }
 
     setupEventListeners() {

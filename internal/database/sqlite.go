@@ -68,11 +68,31 @@ func (db *DB) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(symbol, timestamp)
 		)`,
+		`CREATE TABLE IF NOT EXISTS watched_symbols (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			symbol TEXT NOT NULL UNIQUE,
+			name TEXT,
+			added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			is_active BOOLEAN DEFAULT TRUE
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_symbol_timestamp ON volume_data(symbol, timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_timestamp ON volume_data(timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_symbol ON volume_data(symbol)`,
 		`CREATE INDEX IF NOT EXISTS idx_created_at ON volume_data(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_watched_symbols_active ON watched_symbols(is_active)`,
 	}
+
+	// Insert default symbols if they don't exist
+	defaultSymbols := []string{
+		"INSERT OR IGNORE INTO watched_symbols (symbol, name) VALUES ('PLTR', 'Palantir Technologies Inc.')",
+		"INSERT OR IGNORE INTO watched_symbols (symbol, name) VALUES ('TSLA', 'Tesla Inc.')",
+		"INSERT OR IGNORE INTO watched_symbols (symbol, name) VALUES ('BBAI', 'BigBear.ai Holdings Inc.')",
+		"INSERT OR IGNORE INTO watched_symbols (symbol, name) VALUES ('MSFT', 'Microsoft Corporation')",
+		"INSERT OR IGNORE INTO watched_symbols (symbol, name) VALUES ('NPWR', 'NET Power Inc.')",
+	}
+
+	// Combine all queries
+	queries = append(queries, defaultSymbols...)
 
 	for _, query := range queries {
 		if _, err := db.conn.Exec(query); err != nil {
@@ -387,4 +407,82 @@ func (db *DB) HealthCheck() error {
 	}
 
 	return nil
+}
+
+// GetWatchedSymbols returns all active watched symbols
+func (db *DB) GetWatchedSymbols() ([]string, error) {
+	query := `SELECT symbol FROM watched_symbols WHERE is_active = TRUE ORDER BY symbol`
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get watched symbols: %w", err)
+	}
+	defer rows.Close()
+
+	var symbols []string
+	for rows.Next() {
+		var symbol string
+		if err := rows.Scan(&symbol); err != nil {
+			return nil, fmt.Errorf("failed to scan watched symbol: %w", err)
+		}
+		symbols = append(symbols, symbol)
+	}
+
+	return symbols, nil
+}
+
+// AddWatchedSymbol adds a new symbol to watch
+func (db *DB) AddWatchedSymbol(symbol, name string) error {
+	query := `INSERT OR REPLACE INTO watched_symbols (symbol, name, is_active) VALUES (?, ?, TRUE)`
+
+	_, err := db.conn.Exec(query, symbol, name)
+	if err != nil {
+		return fmt.Errorf("failed to add watched symbol: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveWatchedSymbol marks a symbol as inactive
+func (db *DB) RemoveWatchedSymbol(symbol string) error {
+	query := `UPDATE watched_symbols SET is_active = FALSE WHERE symbol = ?`
+
+	result, err := db.conn.Exec(query, symbol)
+	if err != nil {
+		return fmt.Errorf("failed to remove watched symbol: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("symbol not found: %s", symbol)
+	}
+
+	return nil
+}
+
+// GetWatchedSymbolsWithDetails returns all active watched symbols with details
+func (db *DB) GetWatchedSymbolsWithDetails() ([]*models.WatchedSymbol, error) {
+	query := `SELECT id, symbol, name, added_at, is_active FROM watched_symbols WHERE is_active = TRUE ORDER BY symbol`
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get watched symbols with details: %w", err)
+	}
+	defer rows.Close()
+
+	var symbols []*models.WatchedSymbol
+	for rows.Next() {
+		ws := &models.WatchedSymbol{}
+		err := rows.Scan(&ws.ID, &ws.Symbol, &ws.Name, &ws.AddedAt, &ws.IsActive)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan watched symbol details: %w", err)
+		}
+		symbols = append(symbols, ws)
+	}
+
+	return symbols, nil
 }

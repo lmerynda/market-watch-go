@@ -197,3 +197,24 @@ func GetCommonTimeRanges() []TimeRange {
 		},
 	}
 }
+
+// WatchedSymbol represents a symbol being watched for data collection
+type WatchedSymbol struct {
+	ID       int64     `json:"id" db:"id"`
+	Symbol   string    `json:"symbol" db:"symbol"`
+	Name     string    `json:"name" db:"name"`
+	AddedAt  time.Time `json:"added_at" db:"added_at"`
+	IsActive bool      `json:"is_active" db:"is_active"`
+}
+
+// WatchedSymbolRequest represents a request to add a watched symbol
+type WatchedSymbolRequest struct {
+	Symbol string `json:"symbol" binding:"required"`
+	Name   string `json:"name"`
+}
+
+// WatchedSymbolsResponse represents the response for watched symbols
+type WatchedSymbolsResponse struct {
+	Symbols []WatchedSymbol `json:"symbols"`
+	Count   int             `json:"count"`
+}

@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"market-watch-go/internal/database"
@@ -178,12 +180,12 @@ func (vh *VolumeHandler) GetDashboardSummary(c *gin.Context) {
 		days = 30
 	}
 
-	// Get all symbols from database
-	symbols, err := vh.db.GetAllSymbols()
+	// Get watched symbols from database
+	symbols, err := vh.db.GetWatchedSymbols()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			Error:   "database_error",
-			Message: "Failed to retrieve symbols",
+			Message: "Failed to retrieve watched symbols",
 		})
 		return
 	}
@@ -384,4 +386,103 @@ func (vh *VolumeHandler) HealthCheck(c *gin.Context) {
 	} else {
 		c.JSON(http.StatusServiceUnavailable, health)
 	}
+}
+
+// GetWatchedSymbols handles GET /api/symbols
+func (vh *VolumeHandler) GetWatchedSymbols(c *gin.Context) {
+	symbols, err := vh.db.GetWatchedSymbolsWithDetails()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to retrieve watched symbols",
+		})
+		return
+	}
+
+	// Convert to slice of values for JSON response
+	symbolValues := make([]models.WatchedSymbol, len(symbols))
+	for i, s := range symbols {
+		symbolValues[i] = *s
+	}
+
+	response := models.WatchedSymbolsResponse{
+		Symbols: symbolValues,
+		Count:   len(symbolValues),
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// AddWatchedSymbol handles POST /api/symbols
+func (vh *VolumeHandler) AddWatchedSymbol(c *gin.Context) {
+	var req models.WatchedSymbolRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request format",
+		})
+		return
+	}
+
+	// Validate symbol format (basic validation)
+	if len(req.Symbol) < 1 || len(req.Symbol) > 10 {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "invalid_symbol",
+			Message: "Symbol must be between 1 and 10 characters",
+		})
+		return
+	}
+
+	// Convert to uppercase
+	req.Symbol = strings.ToUpper(req.Symbol)
+
+	err := vh.db.AddWatchedSymbol(req.Symbol, req.Name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to add watched symbol",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Symbol added successfully",
+		"symbol":  req.Symbol,
+	})
+}
+
+// RemoveWatchedSymbol handles DELETE /api/symbols/:symbol
+func (vh *VolumeHandler) RemoveWatchedSymbol(c *gin.Context) {
+	symbol := c.Param("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Symbol parameter is required",
+		})
+		return
+	}
+
+	symbol = strings.ToUpper(symbol)
+
+	err := vh.db.RemoveWatchedSymbol(symbol)
+	if err != nil {
+		if err.Error() == fmt.Sprintf("symbol not found: %s", symbol) {
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				Error:   "symbol_not_found",
+				Message: "Symbol not found in watched list",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to remove watched symbol",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Symbol removed successfully",
+		"symbol":  symbol,
+	})
 }

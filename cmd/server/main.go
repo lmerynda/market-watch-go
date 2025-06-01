@@ -169,6 +169,11 @@ func main() {
 			collection.POST("/force", volumeHandler.ForceCollection)
 		}
 
+		// Symbol management endpoints
+		api.GET("/symbols", volumeHandler.GetWatchedSymbols)
+		api.POST("/symbols", volumeHandler.AddWatchedSymbol)
+		api.DELETE("/symbols/:symbol", volumeHandler.RemoveWatchedSymbol)
+
 		// Debug endpoints
 		debug := api.Group("/debug")
 		{

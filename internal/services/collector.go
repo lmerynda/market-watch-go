@@ -131,11 +131,25 @@ func (cs *CollectorService) collectData() {
 		return
 	}
 
+	// Get watched symbols from database
+	symbols, err := cs.db.GetWatchedSymbols()
+	if err != nil {
+		log.Printf("Failed to get watched symbols: %v", err)
+		return
+	}
+
+	if len(symbols) == 0 {
+		log.Printf("No symbols configured for collection")
+		return
+	}
+
+	log.Printf("Starting data collection for symbols: %v", symbols)
+
 	// Collect data for all symbols
 	collectedCount := 0
 	errorCount := 0
 
-	for _, symbol := range cs.cfg.Collection.Symbols {
+	for _, symbol := range symbols {
 		count, err := cs.collectSymbolData(symbol)
 		if err != nil {
 			log.Printf("Failed to collect data for %s: %v", symbol, err)
@@ -296,7 +310,18 @@ func (cs *CollectorService) ForceCollection() error {
 func (cs *CollectorService) CollectHistoricalData(days int) error {
 	log.Printf("Starting historical data collection for %d days", days)
 
-	for _, symbol := range cs.cfg.Collection.Symbols {
+	// Get watched symbols from database
+	symbols, err := cs.db.GetWatchedSymbols()
+	if err != nil {
+		return fmt.Errorf("failed to get watched symbols: %w", err)
+	}
+
+	if len(symbols) == 0 {
+		log.Printf("No symbols configured for historical collection")
+		return nil
+	}
+
+	for _, symbol := range symbols {
 		log.Printf("Collecting historical data for %s", symbol)
 
 		data, err := cs.polygon.GetHistoricalData(symbol, days)
