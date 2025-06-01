@@ -200,7 +200,6 @@ class MarketWatchDashboard {
             
             if (response.ok) {
                 this.updateMarketStatus(data.market_hours);
-                this.updateVolumeStats(data.symbols);
             } else {
                 throw new Error(data.message || 'Failed to load summary');
             }
@@ -277,32 +276,6 @@ class MarketWatchDashboard {
         }
     }
 
-    updateVolumeStats(symbols) {
-        const container = document.getElementById('volume-stats');
-        if (!container || !symbols) return;
-
-        container.innerHTML = '';
-        
-        symbols.forEach(stat => {
-            const col = document.createElement('div');
-            col.className = 'col-md-2 col-sm-4 col-6 mb-3';
-            
-            const ratio = stat.volume_ratio || 0;
-            const changeClass = ratio > 1.2 ? 'positive' : ratio < 0.8 ? 'negative' : 'neutral';
-            const changeText = ratio > 1 ? `+${((ratio - 1) * 100).toFixed(1)}%` : 
-                             ratio < 1 ? `-${((1 - ratio) * 100).toFixed(1)}%` : '0%';
-            
-            col.innerHTML = `
-                <div class="volume-stat-card">
-                    <div class="volume-stat-value">${stat.current_volume.toLocaleString()}</div>
-                    <div class="volume-stat-label">${stat.symbol}</div>
-                    <div class="volume-stat-change ${changeClass}">${changeText}</div>
-                </div>
-            `;
-            
-            container.appendChild(col);
-        });
-    }
 
     updateSymbolInfo(symbol, chartData) {
         if (!chartData || chartData.length === 0) return;
