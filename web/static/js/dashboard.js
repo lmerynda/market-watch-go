@@ -30,6 +30,7 @@ class MarketWatchDashboard {
         document.querySelectorAll('input[name="timeRange"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 this.currentTimeRange = e.target.value;
+                this.clearHistoricalNotifications();
                 this.refreshCharts();
             });
         });
@@ -86,7 +87,8 @@ class MarketWatchDashboard {
                             tension: 0.2,
                             pointRadius: 0,
                             pointHoverRadius: 4,
-                            borderWidth: 2
+                            borderWidth: 2,
+                            spanGaps: false  // Don't connect points across gaps
                         }]
                     },
                     options: {
@@ -104,7 +106,18 @@ class MarketWatchDashboard {
                                 callbacks: {
                                     title: function(tooltipItems) {
                                         const date = new Date(tooltipItems[0].parsed.x);
-                                        return date.toLocaleString();
+                                        const timeRange = window.dashboard?.currentTimeRange || '1W';
+                                        
+                                        // Format tooltip with time component
+                                        if (timeRange === '1D') {
+                                            // Daily: Show date and time with hours:minutes
+                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' at ' +
+                                                   date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: true});
+                                        } else {
+                                            // Weekly+: Show month/day and time
+                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' at ' +
+                                                   date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: true});
+                                        }
                                     },
                                     label: function(context) {
                                         return `Volume: ${context.parsed.y.toLocaleString()}`;
@@ -117,10 +130,39 @@ class MarketWatchDashboard {
                                 type: 'time',
                                 time: {
                                     displayFormats: {
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm',
-                                        day: 'MMM DD',
-                                        week: 'MMM DD'
+                                        minute: 'HH',
+                                        hour: 'HH',
+                                        day: 'MMM D',
+                                        week: 'MMM D'
+                                    }
+                                },
+                                ticks: {
+                                    callback: function(value, index, values) {
+                                        const date = new Date(value);
+                                        const day = date.getDay();
+                                        // Skip weekends (0 = Sunday, 6 = Saturday)
+                                        if (day === 0 || day === 6) {
+                                            return null;
+                                        }
+                                        
+                                        // Get time range from dashboard instance
+                                        const timeRange = window.dashboard?.currentTimeRange || '1W';
+                                        
+                                        // Skip non-trading hours for all time ranges
+                                        const hour = date.getHours();
+                                        const minute = date.getMinutes();
+                                        
+                                        // Skip non-trading hours (before 9:30 AM or after 4:00 PM)
+                                        if (hour < 9 || (hour === 9 && minute < 30) || hour > 16) {
+                                            return null;
+                                        }
+                                        
+                                        // Format based on time range
+                                        if (timeRange === '1D') {
+                                            return date.toLocaleTimeString([], {hour: '2-digit', hour12: false});
+                                        } else {
+                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                                        }
                                     }
                                 },
                                 grid: {
@@ -154,6 +196,9 @@ class MarketWatchDashboard {
 
         console.log('Loading dashboard data...');
         this.showLoading();
+        
+        // Clear any previous historical data notifications
+        this.clearHistoricalNotifications();
         
         // Create AbortController for cancelling requests
         this.loadingController = new AbortController();
@@ -216,7 +261,29 @@ class MarketWatchDashboard {
 
     async loadChartData(symbol) {
         try {
-            const url = `/api/volume/${symbol}/chart?range=${this.currentTimeRange}`;
+            let url = `/api/volume/${symbol}/chart?range=${this.currentTimeRange}`;
+            let isShowingHistoricalDay = false;
+            let historicalDate = null;
+            
+            // For daily view, check if we need to show last trading day
+            if (this.currentTimeRange === '1D') {
+                const today = new Date();
+                const dayOfWeek = today.getDay();
+                
+                // If it's weekend (Saturday=6, Sunday=0), show last Friday
+                if (dayOfWeek === 0 || dayOfWeek === 6) {
+                    const lastTradingDay = this.getLastTradingDay(today);
+                    const fromDate = new Date(lastTradingDay);
+                    const toDate = new Date(lastTradingDay);
+                    toDate.setDate(toDate.getDate() + 1); // Next day to include full trading day
+                    
+                    url = `/api/volume/${symbol}?from=${fromDate.toISOString().split('T')[0]}&to=${toDate.toISOString().split('T')[0]}&interval=5m`;
+                    isShowingHistoricalDay = true;
+                    historicalDate = lastTradingDay;
+                    console.log(`Weekend detected, loading last trading day for ${symbol}: ${url}`);
+                }
+            }
+            
             console.log(`Loading chart data for ${symbol} with URL: ${url}`);
             const response = await fetch(url, {
                 signal: this.loadingController?.signal
@@ -225,16 +292,63 @@ class MarketWatchDashboard {
             
             console.log(`Chart data response for ${symbol}:`, data);
             
-            if (response.ok && data.datasets && data.datasets.length > 0) {
-                const chartData = data.datasets[0].data.map(point => ({
-                    x: new Date(point.x),
-                    y: point.y
-                }));
+            if (response.ok) {
+                let chartData = [];
                 
-                console.log(`Processed chart data for ${symbol}:`, chartData.length, 'points');
+                // Handle different API response formats
+                if (data.datasets && data.datasets.length > 0) {
+                    // Chart API format
+                    chartData = data.datasets[0].data;
+                } else if (data.data && Array.isArray(data.data)) {
+                    // Volume API format
+                    chartData = data.data.map(point => ({
+                        x: point.timestamp,
+                        y: point.volume
+                    }));
+                }
+                
+                // Filter out weekend data and non-trading hours
+                chartData = chartData
+                    .map(point => ({
+                        x: new Date(point.x),
+                        y: point.y
+                    }))
+                    .filter(point => {
+                        const day = point.x.getDay();
+                        // Skip weekends (0 = Sunday, 6 = Saturday)
+                        if (day === 0 || day === 6) {
+                            return false;
+                        }
+                        
+                        // Filter out non-trading hours for all time ranges
+                        const hour = point.x.getHours();
+                        const minute = point.x.getMinutes();
+                        
+                        // Market hours: 9:30 AM to 4:00 PM ET
+                        // Before 9:30 AM
+                        if (hour < 9 || (hour === 9 && minute < 30)) {
+                            return false;
+                        }
+                        // After 4:00 PM
+                        if (hour > 16) {
+                            return false;
+                        }
+                        
+                        return true;
+                    });
+                
+                console.log(`Processed chart data for ${symbol}:`, chartData.length, 'points (weekends filtered)');
+                
+                // Update chart time format based on current range
+                this.updateChartTimeFormat(symbol);
                 
                 this.charts[symbol].data.datasets[0].data = chartData;
                 this.charts[symbol].update('none');
+                
+                // Show notification if displaying historical data
+                if (isShowingHistoricalDay && historicalDate) {
+                    this.showHistoricalDataNotification(symbol, historicalDate);
+                }
                 
                 // Update symbol info if we have data
                 if (chartData.length > 0) {
@@ -349,6 +463,35 @@ class MarketWatchDashboard {
         }
     }
 
+    updateChartTimeFormat(symbol) {
+        const chart = this.charts[symbol];
+        if (!chart) return;
+        
+        // Update time display format based on current time range
+        let displayFormats;
+        let unit;
+        
+        if (this.currentTimeRange === '1D') {
+            displayFormats = {
+                minute: 'HH',
+                hour: 'HH',
+                day: 'HH'
+            };
+            unit = 'hour';
+        } else {
+            // 1W and 2W
+            displayFormats = {
+                hour: 'MMM D',
+                day: 'MMM D',
+                week: 'MMM D'
+            };
+            unit = 'day';
+        }
+        
+        chart.options.scales.x.time.displayFormats = displayFormats;
+        chart.options.scales.x.time.unit = unit;
+    }
+
     refreshCharts() {
         this.loadAllChartData();
     }
@@ -388,6 +531,82 @@ class MarketWatchDashboard {
             'NPWR': alpha === 1 ? '#9467bd' : `rgba(148, 103, 189, ${alpha})`
         };
         return colors[symbol] || (alpha === 1 ? '#1f77b4' : `rgba(31, 119, 180, ${alpha})`);
+    }
+
+    showHistoricalDataNotification(symbol, historicalDate) {
+        // Show global notification if not already shown
+        if (!document.getElementById('historical-data-banner')) {
+            this.showGlobalHistoricalNotification(historicalDate);
+        }
+        
+        // Add badge to specific chart
+        const chartCard = document.querySelector(`#chart-${symbol}`).closest('.card');
+        if (chartCard) {
+            const header = chartCard.querySelector('.card-header');
+            if (header && !header.querySelector('.historical-badge')) {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-warning historical-badge ms-2';
+                badge.textContent = `Showing ${historicalDate.toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
+                header.appendChild(badge);
+            }
+        }
+    }
+
+    showGlobalHistoricalNotification(historicalDate) {
+        const dateStr = historicalDate.toLocaleDateString([], {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric'
+        });
+        
+        const banner = document.createElement('div');
+        banner.id = 'historical-data-banner';
+        banner.className = 'alert alert-info alert-dismissible fade show mb-3';
+        banner.innerHTML = `
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Showing historical data:</strong> Displaying trading data from ${dateStr} (last trading day)
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        // Insert banner after the controls section
+        const controlsRow = document.querySelector('.row.mb-4');
+        if (controlsRow) {
+            controlsRow.insertAdjacentElement('afterend', banner);
+        }
+    }
+
+    clearHistoricalNotifications() {
+        // Remove global banner
+        const banner = document.getElementById('historical-data-banner');
+        if (banner) {
+            banner.remove();
+        }
+        
+        // Remove chart badges
+        document.querySelectorAll('.historical-badge').forEach(badge => {
+            badge.remove();
+        });
+    }
+
+    getLastTradingDay(date) {
+        const result = new Date(date);
+        const dayOfWeek = result.getDay();
+        
+        if (dayOfWeek === 0) {
+            // Sunday - go back to Friday
+            result.setDate(result.getDate() - 2);
+        } else if (dayOfWeek === 6) {
+            // Saturday - go back to Friday
+            result.setDate(result.getDate() - 1);
+        } else if (dayOfWeek === 1) {
+            // Monday - go back to Friday (3 days)
+            result.setDate(result.getDate() - 3);
+        } else {
+            // Tuesday-Friday - go back one day
+            result.setDate(result.getDate() - 1);
+        }
+        
+        return result;
     }
 
     formatVolume(volume) {
