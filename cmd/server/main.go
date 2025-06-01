@@ -96,7 +96,7 @@ func main() {
 
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService)
-	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static")
+	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
 	debugHandler := handlers.NewDebugHandler(db)
 
 	// Set up Gin router
@@ -173,6 +173,8 @@ func main() {
 		api.GET("/symbols", volumeHandler.GetWatchedSymbols)
 		api.POST("/symbols", volumeHandler.AddWatchedSymbol)
 		api.DELETE("/symbols/:symbol", volumeHandler.RemoveWatchedSymbol)
+		api.GET("/symbols/:symbol/check", volumeHandler.CheckSymbolData)
+		api.POST("/symbols/:symbol/collect", volumeHandler.CollectSymbolData)
 
 		// Debug endpoints
 		debug := api.Group("/debug")

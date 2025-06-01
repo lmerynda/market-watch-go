@@ -352,6 +352,75 @@ func (cs *CollectorService) CollectHistoricalData(days int) error {
 	return nil
 }
 
+// CollectSymbolDataNow immediately collects data for a specific symbol
+// This method is designed for newly added symbols and will collect data regardless of market status
+func (cs *CollectorService) CollectSymbolDataNow(symbol string) error {
+	log.Printf("Collecting immediate data for newly added symbol: %s", symbol)
+
+	// Check if we already have any data for this symbol
+	existingData, err := cs.db.GetLatestVolumeData(symbol)
+	if err != nil {
+		log.Printf("Failed to check existing data for %s: %v", symbol, err)
+	}
+
+	// Always collect historical data for new symbols (last 7 days)
+	log.Printf("Collecting historical data for new symbol %s (7 days)", symbol)
+	historicalData, err := cs.polygon.GetHistoricalData(symbol, 7)
+	if err != nil {
+		log.Printf("Failed to get historical data for %s: %v", symbol, err)
+		// Continue to try recent data even if historical fails
+	} else if len(historicalData) > 0 {
+		err = cs.db.InsertVolumeDataBatch(historicalData)
+		if err != nil {
+			log.Printf("Failed to insert historical data for %s: %v", symbol, err)
+		} else {
+			log.Printf("Successfully collected %d historical data points for %s", len(historicalData), symbol)
+		}
+	}
+
+	// Also collect recent data (last 24 hours) for immediate charts
+	log.Printf("Collecting recent data for new symbol %s (24 hours)", symbol)
+	recentData, err := cs.polygon.GetLatestAggregates(symbol, 1440) // 1440 minutes = 24 hours
+	if err != nil {
+		log.Printf("Failed to get recent data for %s: %v", symbol, err)
+		// If we got historical data, that's better than nothing
+		if existingData == nil && len(historicalData) == 0 {
+			return fmt.Errorf("failed to collect any data for new symbol %s", symbol)
+		}
+		return nil
+	}
+
+	if len(recentData) > 0 {
+		// Filter out data we might already have from historical collection
+		newRecentData, err := cs.filterNewData(recentData)
+		if err != nil {
+			log.Printf("Failed to filter recent data for %s: %v", symbol, err)
+		} else if len(newRecentData) > 0 {
+			err = cs.db.InsertVolumeDataBatch(newRecentData)
+			if err != nil {
+				log.Printf("Failed to insert recent data for %s: %v", symbol, err)
+			} else {
+				log.Printf("Successfully collected %d recent data points for %s", len(newRecentData), symbol)
+			}
+		}
+	}
+
+	// Check final status
+	finalData, err := cs.db.GetLatestVolumeData(symbol)
+	if err != nil {
+		log.Printf("Failed to verify data collection for %s: %v", symbol, err)
+		return nil
+	}
+
+	if finalData == nil {
+		log.Printf("Warning: No data collected for new symbol %s", symbol)
+		return fmt.Errorf("no data available for symbol %s", symbol)
+	}
+
+	log.Printf("Successfully initialized data collection for symbol %s", symbol)
+	return nil
+}
+
 // HealthCheck performs a health check on the collector service
 func (cs *CollectorService) HealthCheck() error {
 	cs.mutex.RLock()

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -445,6 +446,13 @@ func (vh *VolumeHandler) AddWatchedSymbol(c *gin.Context) {
 		return
 	}
 
+	// Trigger immediate data collection for the new symbol
+	go func() {
+		if err := vh.collector.CollectSymbolDataNow(req.Symbol); err != nil {
+			log.Printf("Failed to collect initial data for symbol %s: %v", req.Symbol, err)
+		}
+	}()
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Symbol added successfully",
 		"symbol":  req.Symbol,
@@ -484,5 +492,102 @@ func (vh *VolumeHandler) RemoveWatchedSymbol(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Symbol removed successfully",
 		"symbol":  symbol,
+	})
+}
+
+// CheckSymbolData handles GET /api/symbols/:symbol/check - checks if symbol has data
+func (vh *VolumeHandler) CheckSymbolData(c *gin.Context) {
+	symbol := c.Param("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Symbol parameter is required",
+		})
+		return
+	}
+
+	symbol = strings.ToUpper(symbol)
+
+	// Check if we have any data for this symbol
+	latestData, err := vh.db.GetLatestVolumeData(symbol)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to check symbol data",
+		})
+		return
+	}
+
+	hasData := latestData != nil
+	var dataCount int64 = 0
+	var lastUpdate *time.Time
+
+	if hasData {
+		// Get data count for this symbol
+		counts, err := vh.db.GetDataCountBySymbol()
+		if err == nil {
+			dataCount = counts[symbol]
+		}
+		lastUpdate = &latestData.Timestamp
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"symbol":      symbol,
+		"has_data":    hasData,
+		"data_points": dataCount,
+		"last_update": lastUpdate,
+	})
+}
+
+// CollectSymbolData handles POST /api/symbols/:symbol/collect - manually trigger data collection
+func (vh *VolumeHandler) CollectSymbolData(c *gin.Context) {
+	symbol := c.Param("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "bad_request",
+			Message: "Symbol parameter is required",
+		})
+		return
+	}
+
+	symbol = strings.ToUpper(symbol)
+
+	// Check if symbol is being watched
+	watchedSymbols, err := vh.db.GetWatchedSymbols()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			Error:   "database_error",
+			Message: "Failed to check watched symbols",
+		})
+		return
+	}
+
+	isWatched := false
+	for _, ws := range watchedSymbols {
+		if ws == symbol {
+			isWatched = true
+			break
+		}
+	}
+
+	if !isWatched {
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			Error:   "symbol_not_watched",
+			Message: "Symbol is not in the watchlist",
+		})
+		return
+	}
+
+	// Trigger data collection in background
+	go func() {
+		if err := vh.collector.CollectSymbolDataNow(symbol); err != nil {
+			log.Printf("Failed to collect data for symbol %s: %v", symbol, err)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data collection triggered for symbol",
+		"symbol":  symbol,
+		"status":  "initiated",
 	})
 }

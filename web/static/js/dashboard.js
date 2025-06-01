@@ -15,6 +15,7 @@ class MarketWatchDashboard {
     async init() {
         await this.loadSymbols();
         this.setupEventListeners();
+        this.createChartsContainer();
         this.initializeCharts();
         
         // Add a small delay to ensure DOM is fully rendered
@@ -71,6 +72,30 @@ class MarketWatchDashboard {
             this.forceCollection();
         });
 
+        // Manage symbols button
+        document.getElementById('manage-symbols-btn').addEventListener('click', () => {
+            this.toggleSymbolManagement();
+        });
+
+        // Add symbol button
+        document.getElementById('add-symbol-btn').addEventListener('click', () => {
+            this.addNewSymbol();
+        });
+
+        // Enter key in symbol input
+        document.getElementById('new-symbol-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.addNewSymbol();
+            }
+        });
+
+        // Enter key in symbol name input
+        document.getElementById('new-symbol-name').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.addNewSymbol();
+            }
+        });
+
         // Window resize handler
         window.addEventListener('resize', () => {
             this.resizeCharts();
@@ -90,6 +115,49 @@ class MarketWatchDashboard {
         } else {
             console.warn('No checked radio button found, keeping default:', this.currentTimeRange);
         }
+    }
+
+    createChartsContainer() {
+        // Find the charts grid container
+        const chartsGrid = document.getElementById('charts-grid');
+        
+        if (!chartsGrid) {
+            console.error('Charts grid container not found');
+            return;
+        }
+        
+        // Clear existing chart containers
+        chartsGrid.innerHTML = '';
+        
+        // Create chart containers for each symbol
+        this.symbols.forEach(symbol => {
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'col-lg-6 col-xl-4 mb-4';
+            chartContainer.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">${symbol} Volume</h6>
+                        <div class="d-flex align-items-center">
+                            <span id="${symbol}-current-volume" class="badge bg-primary me-2">--</span>
+                            <span id="${symbol}-volume-change" class="badge bg-secondary">--</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="chart-${symbol}" width="400" height="300"></canvas>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Last: <span id="${symbol}-last-price">--</span> |
+                                Volume: <span id="${symbol}-last-volume">--</span> |
+                                Ratio: <span id="${symbol}-volume-ratio">--</span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chartsGrid.appendChild(chartContainer);
+        });
     }
 
     initializeCharts() {
@@ -712,6 +780,245 @@ class MarketWatchDashboard {
         toast.addEventListener('hidden.bs.toast', () => {
             toast.remove();
         });
+    }
+
+    // Symbol Management Methods
+    toggleSymbolManagement() {
+        const panel = document.getElementById('symbol-management-panel');
+        const btn = document.getElementById('manage-symbols-btn');
+        
+        if (panel.classList.contains('d-none')) {
+            panel.classList.remove('d-none');
+            btn.innerHTML = '<i class="bi bi-x-lg"></i> Close';
+            this.loadWatchedSymbolsList();
+        } else {
+            panel.classList.add('d-none');
+            btn.innerHTML = '<i class="bi bi-gear"></i> Manage Symbols';
+        }
+    }
+
+    async loadWatchedSymbolsList() {
+        try {
+            const response = await fetch('/api/symbols');
+            const data = await response.json();
+            
+            const container = document.getElementById('watched-symbols-list');
+            
+            if (response.ok && data.symbols && data.symbols.length > 0) {
+                container.innerHTML = '';
+                
+                data.symbols.forEach(symbol => {
+                    const symbolBadge = document.createElement('div');
+                    symbolBadge.className = 'badge bg-primary fs-6 p-2 d-flex align-items-center';
+                    symbolBadge.innerHTML = `
+                        <span class="me-2">${symbol.symbol}</span>
+                        <span class="data-status" id="status-${symbol.symbol}">
+                            <i class="bi bi-hourglass-split text-warning" title="Checking data..."></i>
+                        </span>
+                        <button class="btn btn-sm btn-outline-light border-0 p-0 ms-1"
+                                onclick="window.dashboard.removeSymbol('${symbol.symbol}')"
+                                title="Remove ${symbol.symbol}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    container.appendChild(symbolBadge);
+                    
+                    // Check data availability for this symbol
+                    this.checkSymbolData(symbol.symbol);
+                });
+            } else {
+                container.innerHTML = '<div class="text-muted">No symbols are currently being watched.</div>';
+            }
+        } catch (error) {
+            console.error('Failed to load watched symbols:', error);
+            document.getElementById('watched-symbols-list').innerHTML =
+                '<div class="text-danger">Failed to load symbols</div>';
+        }
+    }
+
+    async addNewSymbol() {
+        const symbolInput = document.getElementById('new-symbol-input');
+        const nameInput = document.getElementById('new-symbol-name');
+        const addBtn = document.getElementById('add-symbol-btn');
+        const spinner = document.getElementById('add-symbol-spinner');
+        const btnText = document.getElementById('add-symbol-text');
+        
+        const symbol = symbolInput.value.trim().toUpperCase();
+        const name = nameInput.value.trim();
+        
+        if (!symbol) {
+            this.showError('Please enter a ticker symbol');
+            symbolInput.focus();
+            return;
+        }
+
+        // Show loading state
+        spinner.classList.remove('d-none');
+        btnText.textContent = 'Adding...';
+        addBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/symbols', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    symbol: symbol,
+                    name: name
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showSuccess(`Symbol ${symbol} added successfully`);
+                
+                // Clear inputs
+                symbolInput.value = '';
+                nameInput.value = '';
+                
+                // Reload symbols list
+                this.loadWatchedSymbolsList();
+                
+                // Refresh the dashboard with new symbols
+                setTimeout(async () => {
+                    await this.loadSymbols();
+                    this.createChartsContainer();
+                    this.initializeCharts();
+                    this.loadDashboardData();
+                }, 1000);
+                
+            } else {
+                throw new Error(data.message || 'Failed to add symbol');
+            }
+        } catch (error) {
+            console.error('Failed to add symbol:', error);
+            this.showError('Failed to add symbol: ' + error.message);
+        } finally {
+            // Hide loading state
+            spinner.classList.add('d-none');
+            btnText.textContent = 'Add Symbol';
+            addBtn.disabled = false;
+        }
+    }
+
+    async removeSymbol(symbol) {
+        try {
+            const response = await fetch(`/api/symbols/${symbol}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showSuccess(`Symbol ${symbol} removed successfully`);
+                
+                // Reload symbols list
+                this.loadWatchedSymbolsList();
+                
+                // Refresh the dashboard with updated symbols
+                setTimeout(async () => {
+                    await this.loadSymbols();
+                    this.createChartsContainer();
+                    this.initializeCharts();
+                    this.loadDashboardData();
+                }, 1000);
+                
+            } else {
+                throw new Error(data.message || 'Failed to remove symbol');
+            }
+        } catch (error) {
+            console.error('Failed to remove symbol:', error);
+            this.showError('Failed to remove symbol: ' + error.message);
+        }
+    }
+
+    async checkSymbolData(symbol) {
+        try {
+            const response = await fetch(`/api/symbols/${symbol}/check`);
+            const data = await response.json();
+            
+            const statusElement = document.getElementById(`status-${symbol}`);
+            if (!statusElement) return;
+            
+            if (response.ok) {
+                if (data.has_data && data.data_points > 0) {
+                    // Symbol has data
+                    statusElement.innerHTML = `
+                        <i class="bi bi-check-circle-fill text-success"
+                           title="${data.data_points} data points"></i>
+                    `;
+                } else {
+                    // Symbol has no data - show collect button
+                    statusElement.innerHTML = `
+                        <button class="btn btn-sm btn-outline-warning border-0 p-0"
+                                onclick="window.dashboard.collectSymbolData('${symbol}')"
+                                title="No data - click to collect">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </button>
+                    `;
+                }
+            } else {
+                // Error checking data
+                statusElement.innerHTML = `
+                    <i class="bi bi-question-circle text-secondary"
+                       title="Unable to check data status"></i>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to check symbol data:', error);
+            const statusElement = document.getElementById(`status-${symbol}`);
+            if (statusElement) {
+                statusElement.innerHTML = `
+                    <i class="bi bi-question-circle text-secondary"
+                       title="Error checking data"></i>
+                `;
+            }
+        }
+    }
+
+    async collectSymbolData(symbol) {
+        try {
+            const statusElement = document.getElementById(`status-${symbol}`);
+            if (statusElement) {
+                statusElement.innerHTML = `
+                    <span class="spinner-border spinner-border-sm text-info"
+                          title="Collecting data..."></span>
+                `;
+            }
+
+            const response = await fetch(`/api/symbols/${symbol}/collect`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                this.showSuccess(`Data collection started for ${symbol}`);
+                
+                // Check status again after a delay
+                setTimeout(() => {
+                    this.checkSymbolData(symbol);
+                }, 3000);
+                
+                // Also refresh the dashboard data
+                setTimeout(() => {
+                    this.loadDashboardData();
+                }, 5000);
+                
+            } else {
+                throw new Error(data.message || 'Failed to trigger data collection');
+            }
+        } catch (error) {
+            console.error('Failed to collect symbol data:', error);
+            this.showError('Failed to collect data: ' + error.message);
+            
+            // Reset status indicator
+            setTimeout(() => {
+                this.checkSymbolData(symbol);
+            }, 1000);
+        }
     }
 }
 

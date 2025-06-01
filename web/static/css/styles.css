@@ -436,3 +436,223 @@ body {
 .btn-icon-transition {
     transition: all 0.2s ease-in-out;
 }
+
+/* Symbol Management Styles */
+#symbol-management-panel {
+    transition: all 0.3s ease-in-out;
+}
+
+#symbol-management-panel .card {
+    border-left: 4px solid var(--info-color);
+}
+
+#new-symbol-input,
+#new-symbol-name {
+    text-transform: uppercase;
+}
+
+#new-symbol-input:focus,
+#new-symbol-name:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Watched Symbols List */
+#watched-symbols-list {
+    min-height: 50px;
+    padding: 0.5rem;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    border: 1px solid #dee2e6;
+}
+
+#watched-symbols-list .badge {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    margin: 0.25rem;
+    transition: all 0.2s ease-in-out;
+}
+
+#watched-symbols-list .badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+#watched-symbols-list .badge button {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease-in-out;
+}
+
+#watched-symbols-list .badge button:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+#watched-symbols-list .badge button i {
+    font-size: 0.7rem;
+}
+
+/* Add symbol form enhancements */
+.input-group .form-control:focus {
+    z-index: 3;
+}
+
+#add-symbol-btn {
+    white-space: nowrap;
+    min-width: 120px;
+}
+
+#add-symbol-btn:disabled {
+    opacity: 0.7;
+}
+
+/* Animation for symbol badges */
+@keyframes symbolAdded {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(-10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.symbol-badge-new {
+    animation: symbolAdded 0.3s ease-out;
+}
+
+/* Manage symbols button states */
+#manage-symbols-btn {
+    transition: all 0.2s ease-in-out;
+}
+
+#manage-symbols-btn:hover {
+    background-color: var(--info-color);
+    border-color: var(--info-color);
+    color: white;
+}
+
+/* Symbol management panel sliding effect */
+#symbol-management-panel:not(.d-none) {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading states for symbol operations */
+.symbol-loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.symbol-loading::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.6),
+            transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+/* Data status indicators */
+.data-status {
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
+}
+
+.data-status i {
+    font-size: 0.875rem;
+}
+
+.data-status .spinner-border-sm {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.data-status button {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    color: inherit;
+    transition: transform 0.2s ease-in-out;
+}
+
+.data-status button:hover {
+    transform: scale(1.2);
+}
+
+.data-status .text-success {
+    color: #28a745 !important;
+}
+
+.data-status .text-warning {
+    color: #ffc107 !important;
+}
+
+.data-status .text-info {
+    color: #17a2b8 !important;
+}
+
+.data-status .text-secondary {
+    color: #6c757d !important;
+}
+
+/* Responsive symbol management */
+@media (max-width: 768px) {
+    #watched-symbols-list .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.6rem;
+    }
+
+    .input-group .form-control {
+        margin-bottom: 0.5rem;
+    }
+
+    .input-group {
+        flex-direction: column;
+    }
+
+    .input-group .btn {
+        border-radius: var(--border-radius);
+    }
+
+    #add-symbol-btn {
+        margin-top: 0.5rem;
+    }
+
+    .data-status i {
+        font-size: 0.75rem;
+    }
+}

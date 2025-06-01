@@ -61,6 +61,56 @@
                                 <button id="force-collection-btn" class="btn btn-warning btn-sm">
                                     <i class="bi bi-download"></i> Force Update
                                 </button>
+                                <button id="manage-symbols-btn" class="btn btn-outline-info btn-sm ms-2">
+                                    <i class="bi bi-gear"></i> Manage Symbols
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Symbol Management Panel -->
+        <div class="row mb-4 d-none" id="symbol-management-panel">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-list-ul"></i>
+                            Manage Watched Symbols
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <!-- Add Symbol Form -->
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </span>
+                                    <input type="text" id="new-symbol-input" class="form-control"
+                                        placeholder="Enter ticker symbol (e.g., AAPL)" maxlength="10">
+                                    <input type="text" id="new-symbol-name" class="form-control"
+                                        placeholder="Company name (optional)">
+                                    <button id="add-symbol-btn" class="btn btn-primary">
+                                        <span id="add-symbol-spinner"
+                                            class="spinner-border spinner-border-sm d-none"></span>
+                                        <span id="add-symbol-text">Add Symbol</span>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Add a new ticker symbol to track volume data</small>
+                            </div>
+                        </div>
+
+                        <!-- Current Symbols List -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h6 class="mb-2">Currently Watched Symbols:</h6>
+                                <div id="watched-symbols-list" class="d-flex flex-wrap gap-2">
+                                    <!-- Symbols will be loaded here -->
+                                    <div class="text-muted">Loading symbols...</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -69,33 +119,9 @@
         </div>
 
 
-        <!-- Charts Grid -->
-        <div class="row">
-            {{range $index, $symbol := .symbols}}
-            <div class="col-lg-6 col-xl-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">{{$symbol}} Volume</h6>
-                        <div class="d-flex align-items-center">
-                            <span id="{{$symbol}}-current-volume" class="badge bg-primary me-2">--</span>
-                            <span id="{{$symbol}}-volume-change" class="badge bg-secondary">--</span>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="chart-{{$symbol}}" width="400" height="300"></canvas>
-                        </div>
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                Last: <span id="{{$symbol}}-last-price">--</span> |
-                                Volume: <span id="{{$symbol}}-last-volume">--</span> |
-                                Ratio: <span id="{{$symbol}}-volume-ratio">--</span>
-                            </small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {{end}}
+        <!-- Charts Grid (dynamically populated by JavaScript) -->
+        <div class="row" id="charts-grid">
+            <!-- Charts will be dynamically created here based on watched symbols -->
         </div>
 
         <!-- Collection Status -->
