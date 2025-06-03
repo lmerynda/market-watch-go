@@ -72,14 +72,20 @@ func main() {
 	// Initialize collector service
 	collectorService := services.NewCollectorService(db, polygonService, cfg)
 
-	// Collect historical data if requested
-	if *historical > 0 {
-		log.Printf("Collecting historical data for %d days...", *historical)
-		if err := collectorService.CollectHistoricalData(*historical); err != nil {
-			log.Printf("Failed to collect historical data: %v", err)
-		} else {
-			log.Printf("Historical data collection completed")
-		}
+	// Collect historical data if requested, or default minimum for dashboard functionality
+	historicalDays := *historical
+	if historicalDays == 0 {
+		// Default to 30 days to support all dashboard time ranges (1D, 1W, 2W, 1M)
+		historicalDays = 30
+		log.Printf("Auto-collecting 30 days of historical data to support all dashboard time ranges...")
+	} else {
+		log.Printf("Collecting historical data for %d days...", historicalDays)
+	}
+
+	if err := collectorService.CollectHistoricalData(historicalDays); err != nil {
+		log.Printf("Failed to collect historical data: %v", err)
+	} else {
+		log.Printf("Historical data collection completed")
 	}
 
 	// Start the collector service

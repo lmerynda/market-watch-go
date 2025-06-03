@@ -136,10 +136,10 @@ class MarketWatchDashboard {
             chartContainer.innerHTML = `
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">${symbol} Volume</h6>
+                        <h6 class="mb-0">${symbol} Price</h6>
                         <div class="d-flex align-items-center">
-                            <span id="${symbol}-current-volume" class="badge bg-primary me-2">--</span>
-                            <span id="${symbol}-volume-change" class="badge bg-secondary">--</span>
+                            <span id="${symbol}-current-price" class="badge bg-primary me-2">--</span>
+                            <span id="${symbol}-price-change" class="badge bg-secondary">--</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -148,9 +148,7 @@ class MarketWatchDashboard {
                         </div>
                         <div class="mt-2">
                             <small class="text-muted">
-                                Last: <span id="${symbol}-last-price">--</span> |
-                                Volume: <span id="${symbol}-last-volume">--</span> |
-                                Ratio: <span id="${symbol}-volume-ratio">--</span>
+                                Current: <span id="${symbol}-last-price">--</span>
                             </small>
                         </div>
                     </div>
@@ -168,7 +166,7 @@ class MarketWatchDashboard {
                     type: 'line',
                     data: {
                         datasets: [{
-                            label: `${symbol} Volume`,
+                            label: `${symbol} Price`,
                             data: [],
                             borderColor: this.getSymbolColor(symbol),
                             backgroundColor: this.getSymbolColor(symbol, 0.1),
@@ -209,7 +207,7 @@ class MarketWatchDashboard {
                                         }
                                     },
                                     label: function(context) {
-                                        return `Volume: ${context.parsed.y.toLocaleString()}`;
+                                        return `Price: $${context.parsed.y.toFixed(2)}`;
                                     }
                                 }
                             }
@@ -259,10 +257,10 @@ class MarketWatchDashboard {
                                 }
                             },
                             y: {
-                                beginAtZero: true,
+                                beginAtZero: false,
                                 ticks: {
                                     callback: function(value) {
-                                        return value.toLocaleString();
+                                        return '$' + value.toFixed(2);
                                     }
                                 },
                                 grid: {
@@ -350,7 +348,7 @@ class MarketWatchDashboard {
 
     async loadChartData(symbol) {
         try {
-            let url = `/api/volume/${symbol}/chart?range=${this.currentTimeRange}`;
+            let url = `/api/price/${symbol}/chart?range=${this.currentTimeRange}`;
             let isShowingHistoricalDay = false;
             let historicalDate = null;
             
@@ -366,7 +364,7 @@ class MarketWatchDashboard {
                     const toDate = new Date(lastTradingDay);
                     toDate.setDate(toDate.getDate() + 1); // Next day to include full trading day
                     
-                    url = `/api/volume/${symbol}?from=${fromDate.toISOString().split('T')[0]}&to=${toDate.toISOString().split('T')[0]}&interval=5m`;
+                    url = `/api/price/${symbol}?range=1D&from=${fromDate.toISOString().split('T')[0]}&to=${toDate.toISOString().split('T')[0]}`;
                     isShowingHistoricalDay = true;
                     historicalDate = lastTradingDay;
                     console.log(`Weekend detected, loading last trading day for ${symbol}: ${url}`);
@@ -384,15 +382,12 @@ class MarketWatchDashboard {
             if (response.ok) {
                 let chartData = [];
                 
-                // Handle different API response formats
-                if (data.datasets && data.datasets.length > 0) {
-                    // Chart API format
-                    chartData = data.datasets[0].data;
-                } else if (data.data && Array.isArray(data.data)) {
-                    // Volume API format
+                // Handle price data response format
+                if (data.data && Array.isArray(data.data)) {
+                    // Price API format - use close price for the line chart
                     chartData = data.data.map(point => ({
-                        x: point.timestamp,
-                        y: point.volume
+                        x: point.time * 1000, // Convert from seconds to milliseconds
+                        y: point.close
                     }));
                 }
                 
@@ -486,25 +481,25 @@ class MarketWatchDashboard {
         const latest = chartData[chartData.length - 1];
         const previous = chartData.length > 1 ? chartData[chartData.length - 2] : null;
         
-        // Update current volume
-        const currentVolumeEl = document.getElementById(`${symbol}-current-volume`);
-        if (currentVolumeEl) {
-            currentVolumeEl.textContent = this.formatVolume(latest.y);
+        // Update current price
+        const currentPriceEl = document.getElementById(`${symbol}-current-price`);
+        if (currentPriceEl) {
+            currentPriceEl.textContent = this.formatPrice(latest.y);
         }
         
-        // Update volume change
-        const volumeChangeEl = document.getElementById(`${symbol}-volume-change`);
-        if (volumeChangeEl && previous) {
+        // Update price change
+        const priceChangeEl = document.getElementById(`${symbol}-price-change`);
+        if (priceChangeEl && previous) {
             const change = ((latest.y - previous.y) / previous.y) * 100;
-            const changeText = change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
-            volumeChangeEl.textContent = changeText;
-            volumeChangeEl.className = `badge ${change > 0 ? 'bg-success' : change < 0 ? 'bg-danger' : 'bg-secondary'}`;
+            const changeText = change > 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
+            priceChangeEl.textContent = changeText;
+            priceChangeEl.className = `badge ${change > 0 ? 'bg-success' : change < 0 ? 'bg-danger' : 'bg-secondary'}`;
         }
         
-        // Update last volume
-        const lastVolumeEl = document.getElementById(`${symbol}-last-volume`);
-        if (lastVolumeEl) {
-            lastVolumeEl.textContent = this.formatVolume(latest.y);
+        // Update last price
+        const lastPriceEl = document.getElementById(`${symbol}-last-price`);
+        if (lastPriceEl) {
+            lastPriceEl.textContent = this.formatPrice(latest.y);
         }
     }
 
@@ -705,6 +700,10 @@ class MarketWatchDashboard {
             return (volume / 1000).toFixed(1) + 'K';
         }
         return volume.toLocaleString();
+    }
+
+    formatPrice(price) {
+        return '$' + price.toFixed(2);
     }
 
     showLoading() {

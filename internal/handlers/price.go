@@ -151,6 +151,9 @@ func (ph *PriceHandler) GetPriceChartData(c *gin.Context) {
 		return
 	}
 
+	// Just return whatever data we have in the database
+	// The collector service handles data collection in the background
+
 	// Convert to simple format suitable for TradingView Lightweight Charts
 	chartData := make([]models.TradingViewCandle, 0)
 	for _, pd := range data {
