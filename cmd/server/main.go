@@ -96,6 +96,7 @@ func main() {
 
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService)
+	priceHandler := handlers.NewPriceHandler(db, collectorService, polygonService)
 	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
 	debugHandler := handlers.NewDebugHandler(db)
 
@@ -154,6 +155,15 @@ func main() {
 			volume.GET("/:symbol", volumeHandler.GetVolumeData)
 			volume.GET("/:symbol/latest", volumeHandler.GetLatestVolumeData)
 			volume.GET("/:symbol/chart", volumeHandler.GetChartData)
+		}
+
+		// Price data endpoints for TradingView
+		price := api.Group("/price")
+		{
+			price.GET("/:symbol", priceHandler.GetPriceData)
+			price.GET("/:symbol/latest", priceHandler.GetLatestPriceData)
+			price.GET("/:symbol/chart", priceHandler.GetPriceChartData)
+			price.GET("/:symbol/stats", priceHandler.GetPriceStats)
 		}
 
 		// Dashboard endpoints

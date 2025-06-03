@@ -112,11 +112,6 @@ func (ps *PolygonService) GetAggregates(symbol string, from, to time.Time) ([]*l
 			Symbol:    symbol,
 			Timestamp: timestamp,
 			Volume:    int64(result.Volume),
-			Price:     result.Close,
-			Open:      result.Open,
-			High:      result.High,
-			Low:       result.Low,
-			Close:     result.Close,
 			CreatedAt: time.Now(),
 		}
 
@@ -128,8 +123,8 @@ func (ps *PolygonService) GetAggregates(symbol string, from, to time.Time) ([]*l
 
 	// Debug: log first few data points
 	if len(volumeData) > 0 {
-		log.Printf("Sample data for %s: Volume=%d, Price=%.2f, Time=%s",
-			symbol, volumeData[0].Volume, volumeData[0].Price, volumeData[0].Timestamp.Format("15:04:05"))
+		log.Printf("Sample data for %s: Volume=%d, Time=%s",
+			symbol, volumeData[0].Volume, volumeData[0].Timestamp.Format("15:04:05"))
 	}
 
 	return volumeData, nil
@@ -314,4 +309,109 @@ func (ps *PolygonService) GetHistoricalData(symbol string, days int) ([]*localmo
 	from := to.AddDate(0, 0, -days)
 
 	return ps.GetAggregates(symbol, from, to)
+}
+
+// GetPriceAggregates fetches price aggregated data for a symbol
+func (ps *PolygonService) GetPriceAggregates(symbol string, from, to time.Time) ([]*localmodels.PriceData, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), ps.cfg.Polygon.Timeout)
+	defer cancel()
+
+	// Format dates for Polygon API
+	fromStr := from.Format("2006-01-02")
+	toStr := to.Format("2006-01-02")
+
+	// Build the URL for 5-minute aggregates
+	url := fmt.Sprintf("%s/v2/aggs/ticker/%s/range/5/minute/%s/%s?adjusted=true&sort=asc&limit=50000&apikey=%s",
+		ps.cfg.Polygon.BaseURL, symbol, fromStr, toStr, ps.cfg.Polygon.APIKey)
+
+	// Make the HTTP request
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := ps.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the response
+	var polygonResp PolygonResponse
+	if err := json.NewDecoder(resp.Body).Decode(&polygonResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Check if the response is successful (accept both OK and DELAYED)
+	if polygonResp.Status != "OK" && polygonResp.Status != "DELAYED" {
+		return nil, fmt.Errorf("API response status: %s", polygonResp.Status)
+	}
+
+	// Log if we got DELAYED response
+	if polygonResp.Status == "DELAYED" {
+		log.Printf("Received DELAYED response for %s (normal for free tier)", symbol)
+	}
+
+	var priceData []*localmodels.PriceData
+
+	// Convert results to our format
+	for _, result := range polygonResp.Results {
+		// Convert timestamp from milliseconds to time.Time
+		timestamp := time.Unix(result.Timestamp/1000, (result.Timestamp%1000)*1000000)
+
+		pd := &localmodels.PriceData{
+			Symbol:    symbol,
+			Timestamp: timestamp,
+			Open:      result.Open,
+			High:      result.High,
+			Low:       result.Low,
+			Close:     result.Close,
+			Volume:    int64(result.Volume),
+			CreatedAt: time.Now(),
+		}
+
+		priceData = append(priceData, pd)
+	}
+
+	log.Printf("Fetched %d price data points for %s from %s to %s (Status: %s)",
+		len(priceData), symbol, fromStr, toStr, polygonResp.Status)
+
+	// Debug: log first few data points
+	if len(priceData) > 0 {
+		log.Printf("Sample price data for %s: OHLC=%.2f/%.2f/%.2f/%.2f, Volume=%d, Time=%s",
+			symbol, priceData[0].Open, priceData[0].High, priceData[0].Low, priceData[0].Close,
+			priceData[0].Volume, priceData[0].Timestamp.Format("15:04:05"))
+	}
+
+	return priceData, nil
+}
+
+// GetLatestPriceAggregates fetches the most recent price aggregated data
+func (ps *PolygonService) GetLatestPriceAggregates(symbol string, minutes int) ([]*localmodels.PriceData, error) {
+	to := time.Now()
+	from := to.Add(-time.Duration(minutes) * time.Minute)
+
+	return ps.GetPriceAggregates(symbol, from, to)
+}
+
+// GetTodayPriceAggregates fetches today's price aggregated data
+func (ps *PolygonService) GetTodayPriceAggregates(symbol string) ([]*localmodels.PriceData, error) {
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	return ps.GetPriceAggregates(symbol, today, now)
+}
+
+// GetHistoricalPriceData fetches historical price data for a symbol over specified days
+func (ps *PolygonService) GetHistoricalPriceData(symbol string, days int) ([]*localmodels.PriceData, error) {
+	to := time.Now()
+	from := to.AddDate(0, 0, -days)
+
+	return ps.GetPriceAggregates(symbol, from, to)
 }

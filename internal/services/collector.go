@@ -181,39 +181,89 @@ func (cs *CollectorService) collectData() {
 
 // collectSymbolData collects data for a single symbol
 func (cs *CollectorService) collectSymbolData(symbol string) (int, error) {
+	// Collect volume data
+	volumeCount, err := cs.collectVolumeData(symbol)
+	if err != nil {
+		log.Printf("Failed to collect volume data for %s: %v", symbol, err)
+	}
+
+	// Collect price data
+	priceCount, err := cs.collectPriceData(symbol)
+	if err != nil {
+		log.Printf("Failed to collect price data for %s: %v", symbol, err)
+	}
+
+	return volumeCount + priceCount, nil
+}
+
+// collectVolumeData collects volume data for a single symbol
+func (cs *CollectorService) collectVolumeData(symbol string) (int, error) {
 	// Get recent data (last 2 hours to ensure we don't miss anything)
 	data, err := cs.polygon.GetLatestAggregates(symbol, 120)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get latest aggregates: %w", err)
+		return 0, fmt.Errorf("failed to get latest volume aggregates: %w", err)
 	}
 
 	if len(data) == 0 {
-		log.Printf("No new data available for %s", symbol)
+		log.Printf("No new volume data available for %s", symbol)
 		return 0, nil
 	}
 
 	// Filter out data we might already have
-	newData, err := cs.filterNewData(data)
+	newData, err := cs.filterNewVolumeData(data)
 	if err != nil {
-		return 0, fmt.Errorf("failed to filter new data: %w", err)
+		return 0, fmt.Errorf("failed to filter new volume data: %w", err)
 	}
 
 	if len(newData) == 0 {
-		log.Printf("No new data points for %s", symbol)
+		log.Printf("No new volume data points for %s", symbol)
 		return 0, nil
 	}
 
 	// Insert new data into database
 	err = cs.db.InsertVolumeDataBatch(newData)
 	if err != nil {
-		return 0, fmt.Errorf("failed to insert data batch: %w", err)
+		return 0, fmt.Errorf("failed to insert volume data batch: %w", err)
 	}
 
 	return len(newData), nil
 }
 
-// filterNewData filters out data points that already exist in the database
-func (cs *CollectorService) filterNewData(data []*models.VolumeData) ([]*models.VolumeData, error) {
+// collectPriceData collects price data for a single symbol
+func (cs *CollectorService) collectPriceData(symbol string) (int, error) {
+	// Get recent data (last 2 hours to ensure we don't miss anything)
+	data, err := cs.polygon.GetLatestPriceAggregates(symbol, 120)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get latest price aggregates: %w", err)
+	}
+
+	if len(data) == 0 {
+		log.Printf("No new price data available for %s", symbol)
+		return 0, nil
+	}
+
+	// Filter out data we might already have
+	newData, err := cs.filterNewPriceData(data)
+	if err != nil {
+		return 0, fmt.Errorf("failed to filter new price data: %w", err)
+	}
+
+	if len(newData) == 0 {
+		log.Printf("No new price data points for %s", symbol)
+		return 0, nil
+	}
+
+	// Insert new data into database
+	err = cs.db.InsertPriceDataBatch(newData)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert price data batch: %w", err)
+	}
+
+	return len(newData), nil
+}
+
+// filterNewVolumeData filters out volume data points that already exist in the database
+func (cs *CollectorService) filterNewVolumeData(data []*models.VolumeData) ([]*models.VolumeData, error) {
 	if len(data) == 0 {
 		return data, nil
 	}
@@ -236,6 +286,36 @@ func (cs *CollectorService) filterNewData(data []*models.VolumeData) ([]*models.
 	for _, vd := range data {
 		if vd.Timestamp.After(latest.Timestamp) {
 			newData = append(newData, vd)
+		}
+	}
+
+	return newData, nil
+}
+
+// filterNewPriceData filters out price data points that already exist in the database
+func (cs *CollectorService) filterNewPriceData(data []*models.PriceData) ([]*models.PriceData, error) {
+	if len(data) == 0 {
+		return data, nil
+	}
+
+	symbol := data[0].Symbol
+
+	// Get the latest timestamp we have for this symbol
+	latest, err := cs.db.GetLatestPriceData(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest price data: %w", err)
+	}
+
+	// If we have no data, return all new data
+	if latest == nil {
+		return data, nil
+	}
+
+	// Filter out data points that are older or equal to our latest timestamp
+	var newData []*models.PriceData
+	for _, pd := range data {
+		if pd.Timestamp.After(latest.Timestamp) {
+			newData = append(newData, pd)
 		}
 	}
 
@@ -324,25 +404,31 @@ func (cs *CollectorService) CollectHistoricalData(days int) error {
 	for _, symbol := range symbols {
 		log.Printf("Collecting historical data for %s", symbol)
 
-		data, err := cs.polygon.GetHistoricalData(symbol, days)
+		// Collect volume data
+		volumeData, err := cs.polygon.GetHistoricalData(symbol, days)
 		if err != nil {
-			log.Printf("Failed to get historical data for %s: %v", symbol, err)
-			continue
+			log.Printf("Failed to get historical volume data for %s: %v", symbol, err)
+		} else if len(volumeData) > 0 {
+			err = cs.db.InsertVolumeDataBatch(volumeData)
+			if err != nil {
+				log.Printf("Failed to insert historical volume data for %s: %v", symbol, err)
+			} else {
+				log.Printf("Inserted %d historical volume data points for %s", len(volumeData), symbol)
+			}
 		}
 
-		if len(data) == 0 {
-			log.Printf("No historical data available for %s", symbol)
-			continue
-		}
-
-		// Insert historical data
-		err = cs.db.InsertVolumeDataBatch(data)
+		// Collect price data
+		priceData, err := cs.polygon.GetHistoricalPriceData(symbol, days)
 		if err != nil {
-			log.Printf("Failed to insert historical data for %s: %v", symbol, err)
-			continue
+			log.Printf("Failed to get historical price data for %s: %v", symbol, err)
+		} else if len(priceData) > 0 {
+			err = cs.db.InsertPriceDataBatch(priceData)
+			if err != nil {
+				log.Printf("Failed to insert historical price data for %s: %v", symbol, err)
+			} else {
+				log.Printf("Inserted %d historical price data points for %s", len(priceData), symbol)
+			}
 		}
-
-		log.Printf("Inserted %d historical data points for %s", len(data), symbol)
 
 		// Delay between symbols to respect rate limits
 		time.Sleep(1 * time.Second)
@@ -357,62 +443,91 @@ func (cs *CollectorService) CollectHistoricalData(days int) error {
 func (cs *CollectorService) CollectSymbolDataNow(symbol string) error {
 	log.Printf("Collecting immediate data for newly added symbol: %s", symbol)
 
-	// Check if we already have any data for this symbol
-	existingData, err := cs.db.GetLatestVolumeData(symbol)
-	if err != nil {
-		log.Printf("Failed to check existing data for %s: %v", symbol, err)
-	}
+	// Log that we're starting data collection for a new symbol
+	log.Printf("Starting data collection for newly added symbol: %s", symbol)
 
 	// Always collect historical data for new symbols (last 7 days)
 	log.Printf("Collecting historical data for new symbol %s (7 days)", symbol)
-	historicalData, err := cs.polygon.GetHistoricalData(symbol, 7)
+
+	// Collect volume data
+	historicalVolumeData, err := cs.polygon.GetHistoricalData(symbol, 7)
 	if err != nil {
-		log.Printf("Failed to get historical data for %s: %v", symbol, err)
-		// Continue to try recent data even if historical fails
-	} else if len(historicalData) > 0 {
-		err = cs.db.InsertVolumeDataBatch(historicalData)
+		log.Printf("Failed to get historical volume data for %s: %v", symbol, err)
+	} else if len(historicalVolumeData) > 0 {
+		err = cs.db.InsertVolumeDataBatch(historicalVolumeData)
 		if err != nil {
-			log.Printf("Failed to insert historical data for %s: %v", symbol, err)
+			log.Printf("Failed to insert historical volume data for %s: %v", symbol, err)
 		} else {
-			log.Printf("Successfully collected %d historical data points for %s", len(historicalData), symbol)
+			log.Printf("Successfully collected %d historical volume data points for %s", len(historicalVolumeData), symbol)
+		}
+	}
+
+	// Collect price data
+	historicalPriceData, err := cs.polygon.GetHistoricalPriceData(symbol, 7)
+	if err != nil {
+		log.Printf("Failed to get historical price data for %s: %v", symbol, err)
+	} else if len(historicalPriceData) > 0 {
+		err = cs.db.InsertPriceDataBatch(historicalPriceData)
+		if err != nil {
+			log.Printf("Failed to insert historical price data for %s: %v", symbol, err)
+		} else {
+			log.Printf("Successfully collected %d historical price data points for %s", len(historicalPriceData), symbol)
 		}
 	}
 
 	// Also collect recent data (last 24 hours) for immediate charts
 	log.Printf("Collecting recent data for new symbol %s (24 hours)", symbol)
-	recentData, err := cs.polygon.GetLatestAggregates(symbol, 1440) // 1440 minutes = 24 hours
+
+	// Collect recent volume data
+	recentVolumeData, err := cs.polygon.GetLatestAggregates(symbol, 1440) // 1440 minutes = 24 hours
 	if err != nil {
-		log.Printf("Failed to get recent data for %s: %v", symbol, err)
-		// If we got historical data, that's better than nothing
-		if existingData == nil && len(historicalData) == 0 {
-			return fmt.Errorf("failed to collect any data for new symbol %s", symbol)
+		log.Printf("Failed to get recent volume data for %s: %v", symbol, err)
+	} else if len(recentVolumeData) > 0 {
+		// Filter out data we might already have from historical collection
+		newRecentVolumeData, err := cs.filterNewVolumeData(recentVolumeData)
+		if err != nil {
+			log.Printf("Failed to filter recent volume data for %s: %v", symbol, err)
+		} else if len(newRecentVolumeData) > 0 {
+			err = cs.db.InsertVolumeDataBatch(newRecentVolumeData)
+			if err != nil {
+				log.Printf("Failed to insert recent volume data for %s: %v", symbol, err)
+			} else {
+				log.Printf("Successfully collected %d recent volume data points for %s", len(newRecentVolumeData), symbol)
+			}
 		}
-		return nil
 	}
 
-	if len(recentData) > 0 {
+	// Collect recent price data
+	recentPriceData, err := cs.polygon.GetLatestPriceAggregates(symbol, 1440) // 1440 minutes = 24 hours
+	if err != nil {
+		log.Printf("Failed to get recent price data for %s: %v", symbol, err)
+	} else if len(recentPriceData) > 0 {
 		// Filter out data we might already have from historical collection
-		newRecentData, err := cs.filterNewData(recentData)
+		newRecentPriceData, err := cs.filterNewPriceData(recentPriceData)
 		if err != nil {
-			log.Printf("Failed to filter recent data for %s: %v", symbol, err)
-		} else if len(newRecentData) > 0 {
-			err = cs.db.InsertVolumeDataBatch(newRecentData)
+			log.Printf("Failed to filter recent price data for %s: %v", symbol, err)
+		} else if len(newRecentPriceData) > 0 {
+			err = cs.db.InsertPriceDataBatch(newRecentPriceData)
 			if err != nil {
-				log.Printf("Failed to insert recent data for %s: %v", symbol, err)
+				log.Printf("Failed to insert recent price data for %s: %v", symbol, err)
 			} else {
-				log.Printf("Successfully collected %d recent data points for %s", len(newRecentData), symbol)
+				log.Printf("Successfully collected %d recent price data points for %s", len(newRecentPriceData), symbol)
 			}
 		}
 	}
 
 	// Check final status
-	finalData, err := cs.db.GetLatestVolumeData(symbol)
+	finalVolumeData, err := cs.db.GetLatestVolumeData(symbol)
 	if err != nil {
-		log.Printf("Failed to verify data collection for %s: %v", symbol, err)
-		return nil
+		log.Printf("Failed to verify volume data collection for %s: %v", symbol, err)
 	}
 
-	if finalData == nil {
+	finalPriceData, err := cs.db.GetLatestPriceData(symbol)
+	if err != nil {
+		log.Printf("Failed to verify price data collection for %s: %v", symbol, err)
+	}
+
+	if finalVolumeData == nil && finalPriceData == nil {
 		log.Printf("Warning: No data collected for new symbol %s", symbol)
 		return fmt.Errorf("no data available for symbol %s", symbol)
 	}

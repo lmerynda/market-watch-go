@@ -60,11 +60,18 @@ func (db *DB) migrate() error {
 			symbol TEXT NOT NULL,
 			timestamp DATETIME NOT NULL,
 			volume INTEGER NOT NULL,
-			price DECIMAL(10,2),
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(symbol, timestamp)
+		)`,
+		`CREATE TABLE IF NOT EXISTS price_data (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			symbol TEXT NOT NULL,
+			timestamp DATETIME NOT NULL,
 			open_price DECIMAL(10,2),
 			high_price DECIMAL(10,2),
 			low_price DECIMAL(10,2),
 			close_price DECIMAL(10,2),
+			volume INTEGER NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(symbol, timestamp)
 		)`,
@@ -75,10 +82,14 @@ func (db *DB) migrate() error {
 			added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			is_active BOOLEAN DEFAULT TRUE
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_symbol_timestamp ON volume_data(symbol, timestamp)`,
-		`CREATE INDEX IF NOT EXISTS idx_timestamp ON volume_data(timestamp)`,
-		`CREATE INDEX IF NOT EXISTS idx_symbol ON volume_data(symbol)`,
-		`CREATE INDEX IF NOT EXISTS idx_created_at ON volume_data(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_volume_symbol_timestamp ON volume_data(symbol, timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_volume_timestamp ON volume_data(timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_volume_symbol ON volume_data(symbol)`,
+		`CREATE INDEX IF NOT EXISTS idx_volume_created_at ON volume_data(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_price_symbol_timestamp ON price_data(symbol, timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_price_timestamp ON price_data(timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_price_symbol ON price_data(symbol)`,
+		`CREATE INDEX IF NOT EXISTS idx_price_created_at ON price_data(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_watched_symbols_active ON watched_symbols(is_active)`,
 	}
 
@@ -106,20 +117,15 @@ func (db *DB) migrate() error {
 // InsertVolumeData inserts volume data into the database
 func (db *DB) InsertVolumeData(data *models.VolumeData) error {
 	query := `
-		INSERT OR REPLACE INTO volume_data 
-		(symbol, timestamp, volume, price, open_price, high_price, low_price, close_price, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT OR REPLACE INTO volume_data
+		(symbol, timestamp, volume, created_at)
+		VALUES (?, ?, ?, ?)
 	`
 
 	_, err := db.conn.Exec(query,
 		data.Symbol,
 		data.Timestamp,
 		data.Volume,
-		data.Price,
-		data.Open,
-		data.High,
-		data.Low,
-		data.Close,
 		data.CreatedAt,
 	)
 
@@ -143,9 +149,9 @@ func (db *DB) InsertVolumeDataBatch(dataList []*models.VolumeData) error {
 	defer tx.Rollback()
 
 	stmt, err := tx.Prepare(`
-		INSERT OR REPLACE INTO volume_data 
-		(symbol, timestamp, volume, price, open_price, high_price, low_price, close_price, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT OR REPLACE INTO volume_data
+		(symbol, timestamp, volume, created_at)
+		VALUES (?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
@@ -157,11 +163,6 @@ func (db *DB) InsertVolumeDataBatch(dataList []*models.VolumeData) error {
 			data.Symbol,
 			data.Timestamp,
 			data.Volume,
-			data.Price,
-			data.Open,
-			data.High,
-			data.Low,
-			data.Close,
 			data.CreatedAt,
 		)
 		if err != nil {
@@ -179,8 +180,8 @@ func (db *DB) InsertVolumeDataBatch(dataList []*models.VolumeData) error {
 // GetVolumeData retrieves volume data for a symbol within a time range
 func (db *DB) GetVolumeData(filter *models.VolumeDataFilter) ([]*models.VolumeData, error) {
 	query := `
-		SELECT id, symbol, timestamp, volume, price, open_price, high_price, low_price, close_price, created_at
-		FROM volume_data 
+		SELECT id, symbol, timestamp, volume, created_at
+		FROM volume_data
 		WHERE symbol = ? AND timestamp BETWEEN ? AND ?
 		ORDER BY timestamp ASC
 	`
@@ -211,11 +212,6 @@ func (db *DB) GetVolumeData(filter *models.VolumeDataFilter) ([]*models.VolumeDa
 			&vd.Symbol,
 			&vd.Timestamp,
 			&vd.Volume,
-			&vd.Price,
-			&vd.Open,
-			&vd.High,
-			&vd.Low,
-			&vd.Close,
 			&vd.CreatedAt,
 		)
 		if err != nil {
@@ -234,8 +230,8 @@ func (db *DB) GetVolumeData(filter *models.VolumeDataFilter) ([]*models.VolumeDa
 // GetLatestVolumeData retrieves the latest volume data for a symbol
 func (db *DB) GetLatestVolumeData(symbol string) (*models.VolumeData, error) {
 	query := `
-		SELECT id, symbol, timestamp, volume, price, open_price, high_price, low_price, close_price, created_at
-		FROM volume_data 
+		SELECT id, symbol, timestamp, volume, created_at
+		FROM volume_data
 		WHERE symbol = ?
 		ORDER BY timestamp DESC
 		LIMIT 1
@@ -249,11 +245,6 @@ func (db *DB) GetLatestVolumeData(symbol string) (*models.VolumeData, error) {
 		&vd.Symbol,
 		&vd.Timestamp,
 		&vd.Volume,
-		&vd.Price,
-		&vd.Open,
-		&vd.High,
-		&vd.Low,
-		&vd.Close,
 		&vd.CreatedAt,
 	)
 
