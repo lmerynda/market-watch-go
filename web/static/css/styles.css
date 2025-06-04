@@ -18,16 +18,225 @@ body {
     font-size: 14px;
 }
 
-/* Custom Chart Container */
-.chart-container {
+/* Financial Chart Container */
+.financial-chart-container {
     position: relative;
-    height: 250px;
     width: 100%;
+    overflow: hidden;
 }
 
-.chart-container canvas {
+.financial-chart-container svg {
     max-height: 100%;
     max-width: 100%;
+    display: block;
+}
+
+/* D3 Chart Styles */
+.financial-chart-container .axis {
+    font-size: 11px;
+}
+
+.financial-chart-container .axis path,
+.financial-chart-container .axis line {
+    fill: none;
+    stroke: #666;
+    shape-rendering: crispEdges;
+}
+
+.financial-chart-container .grid line {
+    stroke: #e0e0e0;
+    stroke-opacity: 0.5;
+    shape-rendering: crispEdges;
+}
+
+.financial-chart-container .grid path {
+    stroke-width: 0;
+}
+
+/* Price Chart Specific Styles */
+.financial-chart-container .price-grid line {
+    stroke: #f0f0f0;
+    stroke-opacity: 0.6;
+}
+
+.financial-chart-container .volume-grid line {
+    stroke: #f5f5f5;
+    stroke-opacity: 0.4;
+}
+
+/* Candlestick Chart Styles */
+.financial-chart-container .candlestick {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.financial-chart-container .candlestick:hover .body {
+    stroke-width: 2;
+    filter: brightness(1.1);
+}
+
+.financial-chart-container .candlestick:hover .wick {
+    stroke-width: 2;
+}
+
+.financial-chart-container .candlestick .wick {
+    stroke: #666;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+.financial-chart-container .candlestick .body {
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+/* Volume Bar Styles */
+.financial-chart-container .volume-bar {
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.financial-chart-container .volume-bar:hover {
+    opacity: 0.8;
+}
+
+/* Moving Average Lines */
+.financial-chart-container .ma-20 {
+    stroke: #ff7f0e;
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.8;
+}
+
+.financial-chart-container .ma-50 {
+    stroke: #1f77b4;
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.8;
+}
+
+/* Chart Titles */
+.financial-chart-container .chart-title {
+    font-size: 12px;
+    font-weight: 600;
+    fill: #333;
+    text-anchor: middle;
+}
+
+/* Legend Styles */
+.financial-chart-container .legend text {
+    font-size: 10px;
+    fill: #333;
+    font-weight: 500;
+}
+
+.financial-chart-container .legend line {
+    stroke-width: 2;
+}
+
+/* Enhanced Tooltip for Financial Charts */
+.financial-chart-container .financial-tooltip {
+    position: absolute;
+    padding: 12px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 20, 0.95));
+    color: white;
+    border-radius: 8px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    max-width: 220px;
+    line-height: 1.5;
+    backdrop-filter: blur(4px);
+}
+
+.financial-chart-container .financial-tooltip div {
+    margin: 3px 0;
+}
+
+.financial-chart-container .financial-tooltip div:first-child {
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Price change colors in tooltip */
+.tooltip-positive {
+    color: #4caf50 !important;
+    font-weight: 500;
+}
+
+.tooltip-negative {
+    color: #f44336 !important;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .financial-chart-container {
+        height: 300px;
+    }
+
+    .financial-chart-container .axis {
+        font-size: 10px;
+    }
+
+    .financial-chart-container .chart-title {
+        font-size: 11px;
+    }
+
+    .financial-chart-container .financial-tooltip {
+        font-size: 10px;
+        padding: 8px;
+        max-width: 180px;
+    }
+}
+
+/* Chart container card adjustments */
+.card .financial-chart-container {
+    margin: -8px -12px -8px -12px;
+}
+
+/* Axis styling improvements */
+.financial-chart-container .price-axis text,
+.financial-chart-container .price-right-axis text {
+    fill: #333;
+    font-weight: 500;
+}
+
+.financial-chart-container .volume-axis text {
+    fill: #666;
+    font-size: 10px;
+}
+
+.financial-chart-container .x-axis text {
+    fill: #666;
+    font-weight: 500;
+}
+
+/* Hover effects for interactive elements */
+.financial-chart-container .candlestick:hover,
+.financial-chart-container .volume-bar:hover {
+    filter: brightness(1.1) saturate(1.2);
+}
+
+/* Grid line improvements */
+.financial-chart-container .price-grid .domain {
+    display: none;
+}
+
+.financial-chart-container .volume-grid .domain {
+    display: none;
+}
+
+/* Animation for chart updates */
+.financial-chart-container .candlestick,
+.financial-chart-container .volume-bar,
+.financial-chart-container .ma-20,
+.financial-chart-container .ma-50 {
+    transition: all 0.3s ease;
 }
 
 /* Card Enhancements */

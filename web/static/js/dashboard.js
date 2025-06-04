@@ -1,4 +1,4 @@
-// Market Watch Dashboard JavaScript
+// Market Watch Dashboard JavaScript with D3.js Advanced Financial Charts
 class MarketWatchDashboard {
     constructor() {
         this.charts = {};
@@ -136,19 +136,20 @@ class MarketWatchDashboard {
             chartContainer.innerHTML = `
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">${symbol} Price</h6>
+                        <h6 class="mb-0">${symbol} Financial Chart</h6>
                         <div class="d-flex align-items-center">
                             <span id="${symbol}-current-price" class="badge bg-primary me-2">--</span>
                             <span id="${symbol}-price-change" class="badge bg-secondary">--</span>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="chart-${symbol}" width="400" height="300"></canvas>
+                    <div class="card-body p-2">
+                        <div class="financial-chart-container">
+                            <svg id="chart-${symbol}" width="100%" height="350"></svg>
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 px-2">
                             <small class="text-muted">
                                 Current: <span id="${symbol}-last-price">--</span>
+                                | Volume: <span id="${symbol}-last-volume">--</span>
                             </small>
                         </div>
                     </div>
@@ -160,118 +161,168 @@ class MarketWatchDashboard {
 
     initializeCharts() {
         this.symbols.forEach(symbol => {
-            const ctx = document.getElementById(`chart-${symbol}`);
-            if (ctx) {
-                this.charts[symbol] = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: `${symbol} Price`,
-                            data: [],
-                            borderColor: this.getSymbolColor(symbol),
-                            backgroundColor: this.getSymbolColor(symbol, 0.1),
-                            fill: true,
-                            tension: 0.2,
-                            pointRadius: 0,
-                            pointHoverRadius: 4,
-                            borderWidth: 2,
-                            spanGaps: false  // Don't connect points across gaps
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            intersect: false,
-                            mode: 'index'
-                        },
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    title: function(tooltipItems) {
-                                        const date = new Date(tooltipItems[0].parsed.x);
-                                        const timeRange = window.dashboard?.currentTimeRange || '1W';
-                                        
-                                        // Format tooltip with time component
-                                        if (timeRange === '1D') {
-                                            // Daily: Show date and time with hours:minutes
-                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' at ' +
-                                                   date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: true});
-                                        } else {
-                                            // Weekly+: Show month/day and time
-                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' at ' +
-                                                   date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: true});
-                                        }
-                                    },
-                                    label: function(context) {
-                                        return `Price: $${context.parsed.y.toFixed(2)}`;
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        minute: 'HH',
-                                        hour: 'HH',
-                                        day: 'MMM D',
-                                        week: 'MMM D'
-                                    }
-                                },
-                                ticks: {
-                                    callback: function(value, index, values) {
-                                        const date = new Date(value);
-                                        const day = date.getDay();
-                                        // Skip weekends (0 = Sunday, 6 = Saturday)
-                                        if (day === 0 || day === 6) {
-                                            return null;
-                                        }
-                                        
-                                        // Get time range from dashboard instance
-                                        const timeRange = window.dashboard?.currentTimeRange || '1W';
-                                        
-                                        // Skip non-trading hours for all time ranges
-                                        const hour = date.getHours();
-                                        const minute = date.getMinutes();
-                                        
-                                        // Skip non-trading hours (before 9:30 AM or after 4:00 PM)
-                                        if (hour < 9 || (hour === 9 && minute < 30) || hour > 16) {
-                                            return null;
-                                        }
-                                        
-                                        // Format based on time range
-                                        if (timeRange === '1D') {
-                                            return date.toLocaleTimeString([], {hour: '2-digit', hour12: false});
-                                        } else {
-                                            return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
-                                        }
-                                    }
-                                },
-                                grid: {
-                                    display: false
-                                }
-                            },
-                            y: {
-                                beginAtZero: false,
-                                ticks: {
-                                    callback: function(value) {
-                                        return '$' + value.toFixed(2);
-                                    }
-                                },
-                                grid: {
-                                    color: 'rgba(0,0,0,0.1)'
-                                }
-                            }
-                        }
-                    }
+            this.createD3Chart(symbol);
+        });
+    }
+
+    createD3Chart(symbol) {
+        const svgElement = document.getElementById(`chart-${symbol}`);
+        if (!svgElement) return;
+
+        // Clear any existing content
+        d3.select(svgElement).selectAll("*").remove();
+
+        const container = svgElement.parentElement;
+        const margin = { top: 20, right: 60, bottom: 80, left: 60 };
+        const width = container.clientWidth - margin.left - margin.right;
+        const totalHeight = 350;
+        
+        // Split height: 70% for price chart, 30% for volume
+        const priceHeight = Math.floor(totalHeight * 0.7) - margin.top - 40;
+        const volumeHeight = Math.floor(totalHeight * 0.3) - 40 - margin.bottom;
+
+        const svg = d3.select(svgElement)
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", totalHeight);
+
+        // Price chart group
+        const priceGroup = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Volume chart group
+        const volumeGroup = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top + priceHeight + 40})`);
+
+        // Create scales
+        const xScale = d3.scaleTime().range([0, width]);
+        const priceScale = d3.scaleLinear().range([priceHeight, 0]);
+        const volumeScale = d3.scaleLinear().range([volumeHeight, 0]);
+
+        // Create axes
+        const xAxis = d3.axisBottom(xScale)
+            .tickFormat(d => {
+                if (this.currentTimeRange === '1D') {
+                    return d3.timeFormat("%H:%M")(d);
+                } else {
+                    return d3.timeFormat("%m/%d")(d);
+                }
+            });
+
+        const priceAxis = d3.axisLeft(priceScale)
+            .tickFormat(d => `$${d.toFixed(2)}`);
+
+        const volumeAxis = d3.axisLeft(volumeScale)
+            .tickFormat(d => this.formatVolumeShort(d));
+
+        // Add grid lines for price chart
+        const priceGrid = priceGroup.append("g")
+            .attr("class", "grid price-grid")
+            .style("opacity", 0.3);
+
+        const volumeGrid = volumeGroup.append("g")
+            .attr("class", "grid volume-grid")
+            .style("opacity", 0.3);
+
+        // Add axes containers
+        const priceAxisContainer = priceGroup.append("g")
+            .attr("class", "axis price-axis");
+
+        const volumeAxisContainer = volumeGroup.append("g")
+            .attr("class", "axis volume-axis");
+
+        const xAxisContainer = volumeGroup.append("g")
+            .attr("class", "axis x-axis")
+            .attr("transform", `translate(0,${volumeHeight})`);
+
+        // Add price right axis
+        const priceRightAxisContainer = priceGroup.append("g")
+            .attr("class", "axis price-right-axis")
+            .attr("transform", `translate(${width},0)`);
+
+        // Chart content containers
+        const candlestickContainer = priceGroup.append("g").attr("class", "candlesticks");
+        const movingAverageContainer = priceGroup.append("g").attr("class", "moving-averages");
+        const volumeBarsContainer = volumeGroup.append("g").attr("class", "volume-bars");
+
+        // Add chart titles
+        priceGroup.append("text")
+            .attr("class", "chart-title")
+            .attr("x", width / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .style("font-size", "12px")
+            .style("font-weight", "bold")
+            .style("fill", "#333")
+            .text(`${symbol} Price & Moving Averages`);
+
+        volumeGroup.append("text")
+            .attr("class", "chart-title")
+            .attr("x", width / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .style("font-size", "12px")
+            .style("font-weight", "bold")
+            .style("fill", "#333")
+            .text("Volume");
+
+        // Add tooltip
+        const tooltip = d3.select(container)
+            .append("div")
+            .attr("class", "financial-tooltip")
+            .style("opacity", 0)
+            .style("position", "absolute")
+            .style("background", "rgba(0, 0, 0, 0.9)")
+            .style("color", "white")
+            .style("border-radius", "6px")
+            .style("padding", "10px")
+            .style("font-size", "12px")
+            .style("pointer-events", "none")
+            .style("z-index", "1000")
+            .style("box-shadow", "0 4px 12px rgba(0, 0, 0, 0.3)");
+
+        // Store chart components
+        this.charts[symbol] = {
+            svg,
+            priceGroup,
+            volumeGroup,
+            xScale,
+            priceScale,
+            volumeScale,
+            xAxis,
+            priceAxis,
+            volumeAxis,
+            priceGrid,
+            volumeGrid,
+            priceAxisContainer,
+            volumeAxisContainer,
+            xAxisContainer,
+            priceRightAxisContainer,
+            candlestickContainer,
+            movingAverageContainer,
+            volumeBarsContainer,
+            tooltip,
+            width,
+            priceHeight,
+            volumeHeight,
+            margin
+        };
+    }
+
+    calculateMovingAverage(data, period) {
+        const result = [];
+        for (let i = 0; i < data.length; i++) {
+            if (i < period - 1) {
+                result.push(null);
+            } else {
+                const sum = data.slice(i - period + 1, i + 1)
+                    .reduce((acc, d) => acc + d.close, 0);
+                result.push({
+                    time: data[i].time,
+                    value: sum / period
                 });
             }
-        });
+        }
+        return result.filter(d => d !== null);
     }
 
     async loadDashboardData() {
@@ -384,50 +435,46 @@ class MarketWatchDashboard {
                 
                 // Handle price data response format
                 if (data.data && Array.isArray(data.data)) {
-                    // Price API format - use close price for the line chart
+                    // Price API format - use full OHLC data for candlesticks
                     chartData = data.data.map(point => ({
-                        x: point.time * 1000, // Convert from seconds to milliseconds
-                        y: point.close
+                        time: new Date(point.time * 1000), // Convert from seconds to milliseconds
+                        open: point.open,
+                        high: point.high,
+                        low: point.low,
+                        close: point.close,
+                        volume: point.volume
                     }));
                 }
                 
                 // Filter out weekend data and non-trading hours
-                chartData = chartData
-                    .map(point => ({
-                        x: new Date(point.x),
-                        y: point.y
-                    }))
-                    .filter(point => {
-                        const day = point.x.getDay();
-                        // Skip weekends (0 = Sunday, 6 = Saturday)
-                        if (day === 0 || day === 6) {
-                            return false;
-                        }
-                        
-                        // Filter out non-trading hours for all time ranges
-                        const hour = point.x.getHours();
-                        const minute = point.x.getMinutes();
-                        
-                        // Market hours: 9:30 AM to 4:00 PM ET
-                        // Before 9:30 AM
-                        if (hour < 9 || (hour === 9 && minute < 30)) {
-                            return false;
-                        }
-                        // After 4:00 PM
-                        if (hour > 16) {
-                            return false;
-                        }
-                        
-                        return true;
-                    });
+                chartData = chartData.filter(point => {
+                    const day = point.time.getDay();
+                    // Skip weekends (0 = Sunday, 6 = Saturday)
+                    if (day === 0 || day === 6) {
+                        return false;
+                    }
+                    
+                    // Filter out non-trading hours for all time ranges
+                    const hour = point.time.getHours();
+                    const minute = point.time.getMinutes();
+                    
+                    // Market hours: 9:30 AM to 4:00 PM ET
+                    // Before 9:30 AM
+                    if (hour < 9 || (hour === 9 && minute < 30)) {
+                        return false;
+                    }
+                    // After 4:00 PM
+                    if (hour > 16) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
                 
                 console.log(`Processed chart data for ${symbol}:`, chartData.length, 'points (weekends filtered)');
                 
-                // Update chart time format based on current range
-                this.updateChartTimeFormat(symbol);
-                
-                this.charts[symbol].data.datasets[0].data = chartData;
-                this.charts[symbol].update('none');
+                // Update chart with D3 candlesticks
+                this.updateD3Chart(symbol, chartData);
                 
                 // Show notification if displaying historical data
                 if (isShowingHistoricalDay && historicalDate) {
@@ -441,13 +488,247 @@ class MarketWatchDashboard {
             } else {
                 console.warn(`No chart data for ${symbol}:`, data);
                 // Clear the chart if no data
-                this.charts[symbol].data.datasets[0].data = [];
-                this.charts[symbol].update('none');
+                this.updateD3Chart(symbol, []);
             }
         } catch (error) {
             if (error.name === 'AbortError') throw error; // Re-throw abort errors
             console.error(`Failed to load chart data for ${symbol}:`, error);
         }
+    }
+
+    updateD3Chart(symbol, data) {
+        const chart = this.charts[symbol];
+        if (!chart || !data) return;
+
+        const { 
+            xScale, priceScale, volumeScale, 
+            xAxis, priceAxis, volumeAxis,
+            priceGrid, volumeGrid,
+            priceAxisContainer, volumeAxisContainer, xAxisContainer, priceRightAxisContainer,
+            candlestickContainer, movingAverageContainer, volumeBarsContainer,
+            tooltip, width, priceHeight, volumeHeight 
+        } = chart;
+
+        if (data.length === 0) {
+            // Clear charts
+            candlestickContainer.selectAll("*").remove();
+            movingAverageContainer.selectAll("*").remove();
+            volumeBarsContainer.selectAll("*").remove();
+            return;
+        }
+
+        // Update scales domains
+        const xExtent = d3.extent(data, d => d.time);
+        const priceExtent = d3.extent(data, d => [d.low, d.high]).flat();
+        const volumeExtent = d3.extent(data, d => d.volume);
+        
+        const pricePadding = (priceExtent[1] - priceExtent[0]) * 0.1;
+        const volumePadding = volumeExtent[1] * 0.1;
+
+        xScale.domain(xExtent);
+        priceScale.domain([priceExtent[0] - pricePadding, priceExtent[1] + pricePadding]);
+        volumeScale.domain([0, volumeExtent[1] + volumePadding]);
+
+        // Calculate moving averages
+        const ma20 = this.calculateMovingAverage(data, 20);
+        const ma50 = this.calculateMovingAverage(data, 50);
+
+        // Update grids
+        priceGrid.call(d3.axisLeft(priceScale)
+            .tickSize(-width)
+            .tickFormat("")
+        );
+
+        volumeGrid.call(d3.axisLeft(volumeScale)
+            .tickSize(-width)
+            .tickFormat("")
+        );
+
+        // Update axes
+        priceAxisContainer.call(priceAxis);
+        volumeAxisContainer.call(volumeAxis);
+        xAxisContainer.call(xAxis);
+        priceRightAxisContainer.call(d3.axisRight(priceScale).tickFormat(d => `$${d.toFixed(2)}`));
+
+        // Calculate candlestick width
+        const candleWidth = Math.max(2, Math.min(8, width / data.length * 0.7));
+
+        // Clear existing content
+        candlestickContainer.selectAll("*").remove();
+        movingAverageContainer.selectAll("*").remove();
+        volumeBarsContainer.selectAll("*").remove();
+
+        // Draw volume bars first (background)
+        const volumeBars = volumeBarsContainer.selectAll(".volume-bar")
+            .data(data)
+            .enter()
+            .append("rect")
+            .attr("class", "volume-bar")
+            .attr("x", d => xScale(d.time) - candleWidth / 2)
+            .attr("y", d => volumeScale(d.volume))
+            .attr("width", candleWidth)
+            .attr("height", d => volumeHeight - volumeScale(d.volume))
+            .style("fill", d => d.close >= d.open ? "rgba(44, 160, 44, 0.6)" : "rgba(214, 39, 40, 0.6)")
+            .style("stroke", "none");
+
+        // Draw moving averages
+        if (ma20.length > 0) {
+            const ma20Line = d3.line()
+                .x(d => xScale(d.time))
+                .y(d => priceScale(d.value))
+                .curve(d3.curveMonotoneX);
+
+            movingAverageContainer.append("path")
+                .datum(ma20)
+                .attr("class", "ma-20")
+                .attr("d", ma20Line)
+                .style("fill", "none")
+                .style("stroke", "#ff7f0e")
+                .style("stroke-width", 2)
+                .style("opacity", 0.8);
+        }
+
+        if (ma50.length > 0) {
+            const ma50Line = d3.line()
+                .x(d => xScale(d.time))
+                .y(d => priceScale(d.value))
+                .curve(d3.curveMonotoneX);
+
+            movingAverageContainer.append("path")
+                .datum(ma50)
+                .attr("class", "ma-50")
+                .attr("d", ma50Line)
+                .style("fill", "none")
+                .style("stroke", "#1f77b4")
+                .style("stroke-width", 2)
+                .style("opacity", 0.8);
+        }
+
+        // Draw candlesticks
+        const candlesticks = candlestickContainer.selectAll(".candlestick")
+            .data(data)
+            .enter()
+            .append("g")
+            .attr("class", "candlestick")
+            .attr("transform", d => `translate(${xScale(d.time)}, 0)`);
+
+        // Add high-low lines (wicks)
+        candlesticks.append("line")
+            .attr("class", "wick")
+            .attr("x1", 0)
+            .attr("x2", 0)
+            .attr("y1", d => priceScale(d.high))
+            .attr("y2", d => priceScale(d.low))
+            .style("stroke", "#666")
+            .style("stroke-width", 1);
+
+        // Add open-close rectangles (bodies)
+        candlesticks.append("rect")
+            .attr("class", "body")
+            .attr("x", -candleWidth / 2)
+            .attr("y", d => priceScale(Math.max(d.open, d.close)))
+            .attr("width", candleWidth)
+            .attr("height", d => Math.abs(priceScale(d.open) - priceScale(d.close)) || 1)
+            .style("fill", d => d.close >= d.open ? "#2ca02c" : "#d62728")
+            .style("stroke", d => d.close >= d.open ? "#2ca02c" : "#d62728")
+            .style("stroke-width", 1);
+
+        // Add tooltip interactions for both charts
+        const createTooltipHandler = (isVolumeChart = false) => {
+            return {
+                mouseover: (event, d) => {
+                    tooltip.style("opacity", 1);
+                    
+                    const formatTime = this.currentTimeRange === '1D' 
+                        ? d3.timeFormat("%H:%M")
+                        : d3.timeFormat("%m/%d %H:%M");
+                    
+                    const change = d.close - d.open;
+                    const changePercent = ((change / d.open) * 100).toFixed(2);
+                    const changeColor = change >= 0 ? "#2ca02c" : "#d62728";
+                    
+                    // Find MA values for this time
+                    const ma20Value = ma20.find(ma => ma.time.getTime() === d.time.getTime());
+                    const ma50Value = ma50.find(ma => ma.time.getTime() === d.time.getTime());
+                    
+                    tooltip.html(`
+                        <div style="font-weight: bold; margin-bottom: 4px;">${symbol} - ${formatTime(d.time)}</div>
+                        <div>Open: $${d.open.toFixed(2)}</div>
+                        <div>High: $${d.high.toFixed(2)}</div>
+                        <div>Low: $${d.low.toFixed(2)}</div>
+                        <div>Close: $${d.close.toFixed(2)}</div>
+                        <div style="color: ${changeColor};">
+                            Change: ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${changePercent}%)
+                        </div>
+                        <div>Volume: ${this.formatVolume(d.volume)}</div>
+                        ${ma20Value ? `<div style="color: #ff7f0e;">MA20: $${ma20Value.value.toFixed(2)}</div>` : ''}
+                        ${ma50Value ? `<div style="color: #1f77b4;">MA50: $${ma50Value.value.toFixed(2)}</div>` : ''}
+                    `)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+                },
+                mouseout: () => {
+                    tooltip.style("opacity", 0);
+                },
+                mousemove: (event) => {
+                    tooltip
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                }
+            };
+        };
+
+        const tooltipHandler = createTooltipHandler();
+
+        // Add interactions to candlesticks
+        candlesticks
+            .on("mouseover", tooltipHandler.mouseover)
+            .on("mouseout", tooltipHandler.mouseout)
+            .on("mousemove", tooltipHandler.mousemove);
+
+        // Add interactions to volume bars
+        volumeBars
+            .on("mouseover", tooltipHandler.mouseover)
+            .on("mouseout", tooltipHandler.mouseout)
+            .on("mousemove", tooltipHandler.mousemove);
+
+        // Add legend for moving averages
+        const legend = movingAverageContainer.append("g")
+            .attr("class", "legend")
+            .attr("transform", `translate(${width - 120}, 20)`);
+
+        if (ma20.length > 0) {
+            const ma20Legend = legend.append("g").attr("transform", "translate(0, 0)");
+            ma20Legend.append("line")
+                .attr("x1", 0).attr("x2", 15)
+                .attr("y1", 0).attr("y2", 0)
+                .style("stroke", "#ff7f0e").style("stroke-width", 2);
+            ma20Legend.append("text")
+                .attr("x", 20).attr("y", 0).attr("dy", "0.35em")
+                .style("font-size", "10px").style("fill", "#333")
+                .text("MA20");
+        }
+
+        if (ma50.length > 0) {
+            const ma50Legend = legend.append("g").attr("transform", "translate(0, 15)");
+            ma50Legend.append("line")
+                .attr("x1", 0).attr("x2", 15)
+                .attr("y1", 0).attr("y2", 0)
+                .style("stroke", "#1f77b4").style("stroke-width", 2);
+            ma50Legend.append("text")
+                .attr("x", 20).attr("y", 0).attr("dy", "0.35em")
+                .style("font-size", "10px").style("fill", "#333")
+                .text("MA50");
+        }
+    }
+
+    formatVolumeShort(volume) {
+        if (volume >= 1000000) {
+            return (volume / 1000000).toFixed(0) + 'M';
+        } else if (volume >= 1000) {
+            return (volume / 1000).toFixed(0) + 'K';
+        }
+        return volume.toString();
     }
 
     async loadCollectionStatus() {
@@ -474,7 +755,6 @@ class MarketWatchDashboard {
         }
     }
 
-
     updateSymbolInfo(symbol, chartData) {
         if (!chartData || chartData.length === 0) return;
         
@@ -484,13 +764,13 @@ class MarketWatchDashboard {
         // Update current price
         const currentPriceEl = document.getElementById(`${symbol}-current-price`);
         if (currentPriceEl) {
-            currentPriceEl.textContent = this.formatPrice(latest.y);
+            currentPriceEl.textContent = this.formatPrice(latest.close);
         }
         
         // Update price change
         const priceChangeEl = document.getElementById(`${symbol}-price-change`);
         if (priceChangeEl && previous) {
-            const change = ((latest.y - previous.y) / previous.y) * 100;
+            const change = ((latest.close - previous.close) / previous.close) * 100;
             const changeText = change > 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
             priceChangeEl.textContent = changeText;
             priceChangeEl.className = `badge ${change > 0 ? 'bg-success' : change < 0 ? 'bg-danger' : 'bg-secondary'}`;
@@ -499,7 +779,13 @@ class MarketWatchDashboard {
         // Update last price
         const lastPriceEl = document.getElementById(`${symbol}-last-price`);
         if (lastPriceEl) {
-            lastPriceEl.textContent = this.formatPrice(latest.y);
+            lastPriceEl.textContent = this.formatPrice(latest.close);
+        }
+
+        // Update last volume
+        const lastVolumeEl = document.getElementById(`${symbol}-last-volume`);
+        if (lastVolumeEl) {
+            lastVolumeEl.textContent = this.formatVolume(latest.volume);
         }
     }
 
@@ -547,43 +833,17 @@ class MarketWatchDashboard {
         }
     }
 
-    updateChartTimeFormat(symbol) {
-        const chart = this.charts[symbol];
-        if (!chart) return;
-        
-        // Update time display format based on current time range
-        let displayFormats;
-        let unit;
-        
-        if (this.currentTimeRange === '1D') {
-            displayFormats = {
-                minute: 'HH',
-                hour: 'HH',
-                day: 'HH'
-            };
-            unit = 'hour';
-        } else {
-            // 1W and 2W
-            displayFormats = {
-                hour: 'MMM D',
-                day: 'MMM D',
-                week: 'MMM D'
-            };
-            unit = 'day';
-        }
-        
-        chart.options.scales.x.time.displayFormats = displayFormats;
-        chart.options.scales.x.time.unit = unit;
-    }
-
     refreshCharts() {
         this.loadAllChartData();
     }
 
     resizeCharts() {
-        Object.values(this.charts).forEach(chart => {
-            chart.resize();
+        // Recreate charts on resize
+        this.symbols.forEach(symbol => {
+            this.createD3Chart(symbol);
         });
+        // Reload data to update the resized charts
+        setTimeout(() => this.loadAllChartData(), 100);
     }
 
     startAutoRefresh() {
@@ -608,13 +868,23 @@ class MarketWatchDashboard {
 
     getSymbolColor(symbol, alpha = 1) {
         const colors = {
-            'PLTR': alpha === 1 ? '#1f77b4' : `rgba(31, 119, 180, ${alpha})`,
-            'TSLA': alpha === 1 ? '#ff7f0e' : `rgba(255, 127, 14, ${alpha})`,
-            'BBAI': alpha === 1 ? '#2ca02c' : `rgba(44, 160, 44, ${alpha})`,
-            'MSFT': alpha === 1 ? '#d62728' : `rgba(214, 39, 40, ${alpha})`,
-            'NPWR': alpha === 1 ? '#9467bd' : `rgba(148, 103, 189, ${alpha})`
+            'PLTR': '#1f77b4',
+            'TSLA': '#ff7f0e',
+            'BBAI': '#2ca02c',
+            'MSFT': '#d62728',
+            'NPWR': '#9467bd'
         };
-        return colors[symbol] || (alpha === 1 ? '#1f77b4' : `rgba(31, 119, 180, ${alpha})`);
+        const color = colors[symbol] || '#1f77b4';
+        
+        if (alpha === 1) {
+            return color;
+        } else {
+            // Convert hex to rgba
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
     }
 
     showHistoricalDataNotification(symbol, historicalDate) {

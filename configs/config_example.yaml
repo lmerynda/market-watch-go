@@ -1,0 +1,39 @@
+server:
+  port: 8080
+  host: "localhost"
+  read_timeout: "30s"
+  write_timeout: "30s"
+
+database:
+  path: "./data/market-watch.db"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+
+polygon:
+  api_key: "${POLYGON_API_KEY}"
+  base_url: "https://api.polygon.io"
+  timeout: "30s"
+  retry_attempts: 3
+
+collection:
+  interval: "5m"
+  symbols:
+    - "PLTR"
+    - "TSLA"
+    - "BBAI"
+    - "MSFT"
+    - "NPWR"
+  market_hours:
+    start: "09:30"
+    end: "16:00"
+    timezone: "America/New_York"
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+data_retention:
+  days: 30
+  cleanup_interval: "24h"
