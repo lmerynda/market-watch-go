@@ -1,13 +1,39 @@
-// Market Watch Dashboard JavaScript with D3.js Advanced Financial Charts
+// TradingView-Style Market Watch Dashboard
 class MarketWatchDashboard {
     constructor() {
         this.charts = {};
         this.symbols = [];
-        this.currentTimeRange = '1W';
+        this.currentTimeRange = '1D';
         this.refreshInterval = null;
         this.updateInterval = 30000; // 30 seconds
-        this.isLoading = false; // Track loading state
-        this.loadingController = null; // AbortController for cancelling requests
+        this.isLoading = false;
+        this.loadingController = null;
+        
+        // TradingView color palette
+        this.colors = {
+            background: '#131722',
+            surface: '#1e222d',
+            surfaceLight: '#2a2e39',
+            border: '#363a45',
+            textPrimary: '#d1d4dc',
+            textSecondary: '#787b86',
+            textMuted: '#5d606b',
+            
+            // Chart colors
+            candleUp: '#26a69a',
+            candleDown: '#ef5350',
+            volumeUp: 'rgba(38, 166, 154, 0.6)',
+            volumeDown: 'rgba(239, 83, 80, 0.6)',
+            
+            // Technical indicators
+            sma20: '#ff9800',
+            sma50: '#2196f3',
+            sma200: '#9c27b0',
+            
+            // Grid and axis
+            grid: 'rgba(120, 123, 134, 0.1)',
+            axis: '#363a45'
+        };
         
         this.init();
     }
@@ -18,7 +44,6 @@ class MarketWatchDashboard {
         this.createChartsContainer();
         this.initializeCharts();
         
-        // Add a small delay to ensure DOM is fully rendered
         await new Promise(resolve => setTimeout(resolve, 100));
         
         this.syncTimeRangeFromHTML();
@@ -29,20 +54,17 @@ class MarketWatchDashboard {
 
     async loadSymbols() {
         try {
-            const response = await fetch('/api/symbols');
+            const response = await fetch('/api/collection/status');
             const data = await response.json();
             
-            if (response.ok) {
-                this.symbols = data.symbols.map(s => s.symbol);
+            if (response.ok && data.active_symbols) {
+                this.symbols = data.active_symbols;
                 console.log('Loaded symbols:', this.symbols);
             } else {
-                console.error('Failed to load symbols:', data.message);
-                // Fallback to default symbols
                 this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
             }
         } catch (error) {
             console.error('Error loading symbols:', error);
-            // Fallback to default symbols
             this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
         }
     }
@@ -52,48 +74,25 @@ class MarketWatchDashboard {
         document.querySelectorAll('input[name="timeRange"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 this.currentTimeRange = e.target.value;
-                this.clearHistoricalNotifications();
                 this.refreshCharts();
             });
         });
 
-        // Refresh button
+        // Control buttons
         document.getElementById('refresh-btn').addEventListener('click', () => {
             this.loadDashboardData();
         });
 
-        // Cancel refresh button
         document.getElementById('cancel-refresh-btn').addEventListener('click', () => {
             this.cancelLoading();
         });
 
-        // Force collection button
         document.getElementById('force-collection-btn').addEventListener('click', () => {
             this.forceCollection();
         });
 
-        // Manage symbols button
         document.getElementById('manage-symbols-btn').addEventListener('click', () => {
             this.toggleSymbolManagement();
-        });
-
-        // Add symbol button
-        document.getElementById('add-symbol-btn').addEventListener('click', () => {
-            this.addNewSymbol();
-        });
-
-        // Enter key in symbol input
-        document.getElementById('new-symbol-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.addNewSymbol();
-            }
-        });
-
-        // Enter key in symbol name input
-        document.getElementById('new-symbol-name').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.addNewSymbol();
-            }
         });
 
         // Window resize handler
@@ -103,30 +102,16 @@ class MarketWatchDashboard {
     }
 
     syncTimeRangeFromHTML() {
-        // Debug: log all radio buttons
-        const allRadios = document.querySelectorAll('input[name="timeRange"]');
-        console.log('All time range radio buttons:', Array.from(allRadios).map(r => ({ id: r.id, value: r.value, checked: r.checked })));
-        
-        // Read the checked radio button value to sync with HTML state
         const checkedRadio = document.querySelector('input[name="timeRange"]:checked');
         if (checkedRadio) {
             this.currentTimeRange = checkedRadio.value;
-            console.log('Synced time range from HTML:', this.currentTimeRange);
-        } else {
-            console.warn('No checked radio button found, keeping default:', this.currentTimeRange);
         }
     }
 
     createChartsContainer() {
-        // Find the charts grid container
         const chartsGrid = document.getElementById('charts-grid');
+        if (!chartsGrid) return;
         
-        if (!chartsGrid) {
-            console.error('Charts grid container not found');
-            return;
-        }
-        
-        // Clear existing chart containers
         chartsGrid.innerHTML = '';
         
         // Create chart containers for each symbol
@@ -136,7 +121,7 @@ class MarketWatchDashboard {
             chartContainer.innerHTML = `
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">${symbol} Financial Chart</h6>
+                        <h6 class="mb-0">${symbol}</h6>
                         <div class="d-flex align-items-center">
                             <span id="${symbol}-current-price" class="badge bg-primary me-2">--</span>
                             <span id="${symbol}-price-change" class="badge bg-secondary">--</span>
@@ -148,8 +133,15 @@ class MarketWatchDashboard {
                         </div>
                         <div class="mt-2 px-2">
                             <small class="text-muted">
-                                Current: <span id="${symbol}-last-price">--</span>
-                                | Volume: <span id="${symbol}-last-volume">--</span>
+                                <span class="price-display">
+                                    O: <span id="${symbol}-open" class="text-tv-secondary">--</span>
+                                    H: <span id="${symbol}-high" class="text-success">--</span>
+                                    L: <span id="${symbol}-low" class="text-danger">--</span>
+                                    C: <span id="${symbol}-close" class="text-tv-primary">--</span>
+                                </span>
+                                <span class="ms-3">
+                                    Vol: <span id="${symbol}-volume" class="text-tv-secondary">--</span>
+                                </span>
                             </small>
                         </div>
                     </div>
@@ -161,11 +153,11 @@ class MarketWatchDashboard {
 
     initializeCharts() {
         this.symbols.forEach(symbol => {
-            this.createD3Chart(symbol);
+            this.createTradingViewChart(symbol);
         });
     }
 
-    createD3Chart(symbol) {
+    createTradingViewChart(symbol) {
         const svgElement = document.getElementById(`chart-${symbol}`);
         if (!svgElement) return;
 
@@ -173,192 +165,58 @@ class MarketWatchDashboard {
         d3.select(svgElement).selectAll("*").remove();
 
         const container = svgElement.parentElement;
-        const margin = { top: 20, right: 60, bottom: 80, left: 60 };
+        const margin = { top: 20, right: 50, bottom: 50, left: 60 };
         const width = container.clientWidth - margin.left - margin.right;
-        const totalHeight = 350;
-        
-        // Split height: 70% for price chart, 30% for volume
-        const priceHeight = Math.floor(totalHeight * 0.7) - margin.top - 40;
-        const volumeHeight = Math.floor(totalHeight * 0.3) - 40 - margin.bottom;
+        const height = 350 - margin.top - margin.bottom;
 
         const svg = d3.select(svgElement)
             .attr("width", width + margin.left + margin.right)
-            .attr("height", totalHeight);
+            .attr("height", height + margin.top + margin.bottom)
+            .style("background", this.colors.surface);
 
-        // Price chart group
-        const priceGroup = svg.append("g")
+        const g = svg.append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
 
-        // Volume chart group
-        const volumeGroup = svg.append("g")
-            .attr("transform", `translate(${margin.left},${margin.top + priceHeight + 40})`);
-
-        // Create scales
-        const xScale = d3.scaleTime().range([0, width]);
-        const priceScale = d3.scaleLinear().range([priceHeight, 0]);
-        const volumeScale = d3.scaleLinear().range([volumeHeight, 0]);
-
-        // Create axes
-        const xAxis = d3.axisBottom(xScale)
-            .tickFormat(d => {
-                if (this.currentTimeRange === '1D') {
-                    return d3.timeFormat("%H:%M")(d);
-                } else {
-                    return d3.timeFormat("%m/%d")(d);
-                }
-            });
-
-        const priceAxis = d3.axisLeft(priceScale)
-            .tickFormat(d => `$${d.toFixed(2)}`);
-
-        const volumeAxis = d3.axisLeft(volumeScale)
-            .tickFormat(d => this.formatVolumeShort(d));
-
-        // Add grid lines for price chart
-        const priceGrid = priceGroup.append("g")
-            .attr("class", "grid price-grid")
-            .style("opacity", 0.3);
-
-        const volumeGrid = volumeGroup.append("g")
-            .attr("class", "grid volume-grid")
-            .style("opacity", 0.3);
-
-        // Add axes containers
-        const priceAxisContainer = priceGroup.append("g")
-            .attr("class", "axis price-axis");
-
-        const volumeAxisContainer = volumeGroup.append("g")
-            .attr("class", "axis volume-axis");
-
-        const xAxisContainer = volumeGroup.append("g")
-            .attr("class", "axis x-axis")
-            .attr("transform", `translate(0,${volumeHeight})`);
-
-        // Add price right axis
-        const priceRightAxisContainer = priceGroup.append("g")
-            .attr("class", "axis price-right-axis")
-            .attr("transform", `translate(${width},0)`);
-
-        // Chart content containers
-        const candlestickContainer = priceGroup.append("g").attr("class", "candlesticks");
-        const movingAverageContainer = priceGroup.append("g").attr("class", "moving-averages");
-        const volumeBarsContainer = volumeGroup.append("g").attr("class", "volume-bars");
-
-        // Add chart titles
-        priceGroup.append("text")
-            .attr("class", "chart-title")
-            .attr("x", width / 2)
-            .attr("y", -5)
-            .attr("text-anchor", "middle")
-            .style("font-size", "12px")
-            .style("font-weight", "bold")
-            .style("fill", "#333")
-            .text(`${symbol} Price & Moving Averages`);
-
-        volumeGroup.append("text")
-            .attr("class", "chart-title")
-            .attr("x", width / 2)
-            .attr("y", -5)
-            .attr("text-anchor", "middle")
-            .style("font-size", "12px")
-            .style("font-weight", "bold")
-            .style("fill", "#333")
-            .text("Volume");
-
-        // Add tooltip
-        const tooltip = d3.select(container)
-            .append("div")
-            .attr("class", "financial-tooltip")
-            .style("opacity", 0)
-            .style("position", "absolute")
-            .style("background", "rgba(0, 0, 0, 0.9)")
-            .style("color", "white")
-            .style("border-radius", "6px")
-            .style("padding", "10px")
-            .style("font-size", "12px")
-            .style("pointer-events", "none")
-            .style("z-index", "1000")
-            .style("box-shadow", "0 4px 12px rgba(0, 0, 0, 0.3)");
+        // Add chart background
+        g.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", this.colors.surface)
+            .attr("stroke", this.colors.border)
+            .attr("stroke-width", 1);
 
         // Store chart components
         this.charts[symbol] = {
             svg,
-            priceGroup,
-            volumeGroup,
-            xScale,
-            priceScale,
-            volumeScale,
-            xAxis,
-            priceAxis,
-            volumeAxis,
-            priceGrid,
-            volumeGrid,
-            priceAxisContainer,
-            volumeAxisContainer,
-            xAxisContainer,
-            priceRightAxisContainer,
-            candlestickContainer,
-            movingAverageContainer,
-            volumeBarsContainer,
-            tooltip,
+            g,
             width,
-            priceHeight,
-            volumeHeight,
+            height,
             margin
         };
     }
 
-    calculateMovingAverage(data, period) {
-        const result = [];
-        for (let i = 0; i < data.length; i++) {
-            if (i < period - 1) {
-                result.push(null);
-            } else {
-                const sum = data.slice(i - period + 1, i + 1)
-                    .reduce((acc, d) => acc + d.close, 0);
-                result.push({
-                    time: data[i].time,
-                    value: sum / period
-                });
-            }
-        }
-        return result.filter(d => d !== null);
-    }
-
     async loadDashboardData() {
-        // Don't start new loading if already loading
-        if (this.isLoading) {
-            console.log('Already loading, skipping...');
-            return;
-        }
+        if (this.isLoading) return;
 
         console.log('Loading dashboard data...');
         this.showLoading();
-        
-        // Clear any previous historical data notifications
-        this.clearHistoricalNotifications();
-        
-        // Create AbortController for cancelling requests
         this.loadingController = new AbortController();
         
         try {
-            // Load dashboard summary
-            console.log('Loading dashboard summary...');
-            await this.loadDashboardSummary();
-            
-            // Check if cancelled
-            if (this.loadingController.signal.aborted) return;
+            // Load collection status
+            await this.loadCollectionStatus();
             
             // Load chart data for all symbols
-            console.log('Loading chart data...');
             await this.loadAllChartData();
             
-            // Check if cancelled
-            if (this.loadingController.signal.aborted) return;
+            // Load technical analysis
+            await this.loadTechnicalAnalysis();
             
-            // Load collection status
-            console.log('Loading collection status...');
-            await this.loadCollectionStatus();
+            // Load trading setups
+            await this.loadTradingSetups();
+            
+            // Load support/resistance
+            await this.loadSupportResistance();
             
             this.updateLastUpdateTime();
             console.log('Dashboard data loaded successfully');
@@ -374,24 +232,6 @@ class MarketWatchDashboard {
         }
     }
 
-    async loadDashboardSummary() {
-        try {
-            const response = await fetch('/api/dashboard/summary', {
-                signal: this.loadingController?.signal
-            });
-            const data = await response.json();
-            
-            if (response.ok) {
-                this.updateMarketStatus(data.market_hours);
-            } else {
-                throw new Error(data.message || 'Failed to load summary');
-            }
-        } catch (error) {
-            if (error.name === 'AbortError') throw error; // Re-throw abort errors
-            console.error('Failed to load dashboard summary:', error);
-        }
-    }
-
     async loadAllChartData() {
         const promises = this.symbols.map(symbol => this.loadChartData(symbol));
         await Promise.all(promises);
@@ -399,336 +239,365 @@ class MarketWatchDashboard {
 
     async loadChartData(symbol) {
         try {
-            let url = `/api/price/${symbol}/chart?range=${this.currentTimeRange}`;
-            let isShowingHistoricalDay = false;
-            let historicalDate = null;
+            const url = `/api/price/${symbol}/chart?range=${this.currentTimeRange}`;
+            console.log(`Loading chart data for ${symbol}: ${url}`);
             
-            // For daily view, check if we need to show last trading day
-            if (this.currentTimeRange === '1D') {
-                const today = new Date();
-                const dayOfWeek = today.getDay();
-                
-                // If it's weekend (Saturday=6, Sunday=0), show last Friday
-                if (dayOfWeek === 0 || dayOfWeek === 6) {
-                    const lastTradingDay = this.getLastTradingDay(today);
-                    const fromDate = new Date(lastTradingDay);
-                    const toDate = new Date(lastTradingDay);
-                    toDate.setDate(toDate.getDate() + 1); // Next day to include full trading day
-                    
-                    url = `/api/price/${symbol}?range=1D&from=${fromDate.toISOString().split('T')[0]}&to=${toDate.toISOString().split('T')[0]}`;
-                    isShowingHistoricalDay = true;
-                    historicalDate = lastTradingDay;
-                    console.log(`Weekend detected, loading last trading day for ${symbol}: ${url}`);
-                }
-            }
-            
-            console.log(`Loading chart data for ${symbol} with URL: ${url}`);
             const response = await fetch(url, {
                 signal: this.loadingController?.signal
             });
             const data = await response.json();
             
-            console.log(`Chart data response for ${symbol}:`, data);
-            
-            if (response.ok) {
-                let chartData = [];
-                
-                // Handle price data response format
-                if (data.data && Array.isArray(data.data)) {
-                    // Price API format - use full OHLC data for candlesticks
-                    chartData = data.data.map(point => ({
-                        time: new Date(point.time * 1000), // Convert from seconds to milliseconds
-                        open: point.open,
-                        high: point.high,
-                        low: point.low,
-                        close: point.close,
-                        volume: point.volume
-                    }));
-                }
-                
-                // Filter out weekend data and non-trading hours
-                chartData = chartData.filter(point => {
-                    const day = point.time.getDay();
-                    // Skip weekends (0 = Sunday, 6 = Saturday)
-                    if (day === 0 || day === 6) {
-                        return false;
-                    }
-                    
-                    // Filter out non-trading hours for all time ranges
-                    const hour = point.time.getHours();
-                    const minute = point.time.getMinutes();
-                    
-                    // Market hours: 9:30 AM to 4:00 PM ET
-                    // Before 9:30 AM
-                    if (hour < 9 || (hour === 9 && minute < 30)) {
-                        return false;
-                    }
-                    // After 4:00 PM
-                    if (hour > 16) {
-                        return false;
-                    }
-                    
-                    return true;
-                });
-                
-                console.log(`Processed chart data for ${symbol}:`, chartData.length, 'points (weekends filtered)');
-                
-                // Update chart with D3 candlesticks
-                this.updateD3Chart(symbol, chartData);
-                
-                // Show notification if displaying historical data
-                if (isShowingHistoricalDay && historicalDate) {
-                    this.showHistoricalDataNotification(symbol, historicalDate);
-                }
-                
-                // Update symbol info if we have data
-                if (chartData.length > 0) {
-                    this.updateSymbolInfo(symbol, chartData);
-                }
+            if (response.ok && data.data && data.data.length > 0) {
+                this.updateTradingViewChart(symbol, data.data);
+                this.updateSymbolInfo(symbol, data.data);
             } else {
-                console.warn(`No chart data for ${symbol}:`, data);
-                // Clear the chart if no data
-                this.updateD3Chart(symbol, []);
+                console.warn(`No chart data for ${symbol}`);
+                this.updateTradingViewChart(symbol, []);
             }
         } catch (error) {
-            if (error.name === 'AbortError') throw error; // Re-throw abort errors
+            if (error.name === 'AbortError') throw error;
             console.error(`Failed to load chart data for ${symbol}:`, error);
         }
     }
 
-    updateD3Chart(symbol, data) {
+    updateTradingViewChart(symbol, data) {
         const chart = this.charts[symbol];
         if (!chart || !data) return;
 
-        const { 
-            xScale, priceScale, volumeScale, 
-            xAxis, priceAxis, volumeAxis,
-            priceGrid, volumeGrid,
-            priceAxisContainer, volumeAxisContainer, xAxisContainer, priceRightAxisContainer,
-            candlestickContainer, movingAverageContainer, volumeBarsContainer,
-            tooltip, width, priceHeight, volumeHeight 
-        } = chart;
+        const { g, width, height } = chart;
+        
+        // Clear previous content
+        g.selectAll("*").remove();
 
         if (data.length === 0) {
-            // Clear charts
-            candlestickContainer.selectAll("*").remove();
-            movingAverageContainer.selectAll("*").remove();
-            volumeBarsContainer.selectAll("*").remove();
+            g.append("text")
+                .attr("x", width / 2)
+                .attr("y", height / 2)
+                .attr("text-anchor", "middle")
+                .style("fill", this.colors.textMuted)
+                .style("font-size", "12px")
+                .text("No data available");
             return;
         }
 
-        // Update scales domains
-        const xExtent = d3.extent(data, d => d.time);
-        const priceExtent = d3.extent(data, d => [d.low, d.high]).flat();
-        const volumeExtent = d3.extent(data, d => d.volume);
-        
-        const pricePadding = (priceExtent[1] - priceExtent[0]) * 0.1;
-        const volumePadding = volumeExtent[1] * 0.1;
+        // Parse data
+        const parsedData = data.map(d => ({
+            timestamp: new Date(d.timestamp),
+            open: d.open_price || d.open,
+            high: d.high_price || d.high,
+            low: d.low_price || d.low,
+            close: d.close_price || d.close,
+            volume: d.volume
+        }));
 
-        xScale.domain(xExtent);
-        priceScale.domain([priceExtent[0] - pricePadding, priceExtent[1] + pricePadding]);
-        volumeScale.domain([0, volumeExtent[1] + volumePadding]);
+        // Create scales
+        const xScale = d3.scaleTime()
+            .domain(d3.extent(parsedData, d => d.timestamp))
+            .range([0, width]);
 
-        // Calculate moving averages
-        const ma20 = this.calculateMovingAverage(data, 20);
-        const ma50 = this.calculateMovingAverage(data, 50);
+        const priceExtent = d3.extent(parsedData, d => Math.max(d.high, d.low));
+        const yScale = d3.scaleLinear()
+            .domain([priceExtent[0] * 0.99, priceExtent[1] * 1.01])
+            .range([height - 60, 0]); // Leave space for volume
 
-        // Update grids
-        priceGrid.call(d3.axisLeft(priceScale)
-            .tickSize(-width)
-            .tickFormat("")
-        );
+        const volumeScale = d3.scaleLinear()
+            .domain([0, d3.max(parsedData, d => d.volume)])
+            .range([height - 50, height - 10]);
 
-        volumeGrid.call(d3.axisLeft(volumeScale)
-            .tickSize(-width)
-            .tickFormat("")
-        );
+        // Add grid
+        this.addGrid(g, width, height, xScale, yScale);
 
-        // Update axes
-        priceAxisContainer.call(priceAxis);
-        volumeAxisContainer.call(volumeAxis);
-        xAxisContainer.call(xAxis);
-        priceRightAxisContainer.call(d3.axisRight(priceScale).tickFormat(d => `$${d.toFixed(2)}`));
+        // Add candlesticks
+        this.addCandlesticks(g, parsedData, xScale, yScale);
 
-        // Calculate candlestick width
-        const candleWidth = Math.max(2, Math.min(8, width / data.length * 0.7));
+        // Add volume bars
+        this.addVolumeBar(g, parsedData, xScale, volumeScale);
 
-        // Clear existing content
-        candlestickContainer.selectAll("*").remove();
-        movingAverageContainer.selectAll("*").remove();
-        volumeBarsContainer.selectAll("*").remove();
+        // Add moving averages
+        this.addMovingAverages(g, parsedData, xScale, yScale);
 
-        // Draw volume bars first (background)
-        const volumeBars = volumeBarsContainer.selectAll(".volume-bar")
-            .data(data)
-            .enter()
-            .append("rect")
-            .attr("class", "volume-bar")
-            .attr("x", d => xScale(d.time) - candleWidth / 2)
-            .attr("y", d => volumeScale(d.volume))
-            .attr("width", candleWidth)
-            .attr("height", d => volumeHeight - volumeScale(d.volume))
-            .style("fill", d => d.close >= d.open ? "rgba(44, 160, 44, 0.6)" : "rgba(214, 39, 40, 0.6)")
-            .style("stroke", "none");
+        // Add axes
+        this.addAxes(g, width, height, xScale, yScale);
 
-        // Draw moving averages
-        if (ma20.length > 0) {
-            const ma20Line = d3.line()
-                .x(d => xScale(d.time))
-                .y(d => priceScale(d.value))
-                .curve(d3.curveMonotoneX);
+        // Add crosshair
+        this.addCrosshair(g, width, height, parsedData, xScale, yScale, symbol);
+    }
 
-            movingAverageContainer.append("path")
-                .datum(ma20)
-                .attr("class", "ma-20")
-                .attr("d", ma20Line)
-                .style("fill", "none")
-                .style("stroke", "#ff7f0e")
-                .style("stroke-width", 2)
-                .style("opacity", 0.8);
-        }
+    addGrid(g, width, height, xScale, yScale) {
+        // Vertical grid lines
+        g.selectAll(".grid-x")
+            .data(xScale.ticks(6))
+            .enter().append("line")
+            .attr("class", "grid-x")
+            .attr("x1", d => xScale(d))
+            .attr("x2", d => xScale(d))
+            .attr("y1", 0)
+            .attr("y2", height - 60)
+            .attr("stroke", this.colors.grid)
+            .attr("stroke-width", 1);
 
-        if (ma50.length > 0) {
-            const ma50Line = d3.line()
-                .x(d => xScale(d.time))
-                .y(d => priceScale(d.value))
-                .curve(d3.curveMonotoneX);
-
-            movingAverageContainer.append("path")
-                .datum(ma50)
-                .attr("class", "ma-50")
-                .attr("d", ma50Line)
-                .style("fill", "none")
-                .style("stroke", "#1f77b4")
-                .style("stroke-width", 2)
-                .style("opacity", 0.8);
-        }
-
-        // Draw candlesticks
-        const candlesticks = candlestickContainer.selectAll(".candlestick")
-            .data(data)
-            .enter()
-            .append("g")
-            .attr("class", "candlestick")
-            .attr("transform", d => `translate(${xScale(d.time)}, 0)`);
-
-        // Add high-low lines (wicks)
-        candlesticks.append("line")
-            .attr("class", "wick")
+        // Horizontal grid lines
+        g.selectAll(".grid-y")
+            .data(yScale.ticks(6))
+            .enter().append("line")
+            .attr("class", "grid-y")
             .attr("x1", 0)
-            .attr("x2", 0)
-            .attr("y1", d => priceScale(d.high))
-            .attr("y2", d => priceScale(d.low))
-            .style("stroke", "#666")
-            .style("stroke-width", 1);
+            .attr("x2", width)
+            .attr("y1", d => yScale(d))
+            .attr("y2", d => yScale(d))
+            .attr("stroke", this.colors.grid)
+            .attr("stroke-width", 1);
+    }
 
-        // Add open-close rectangles (bodies)
-        candlesticks.append("rect")
-            .attr("class", "body")
-            .attr("x", -candleWidth / 2)
-            .attr("y", d => priceScale(Math.max(d.open, d.close)))
+    addCandlesticks(g, data, xScale, yScale) {
+        const candleWidth = Math.max(2, (xScale.range()[1] - xScale.range()[0]) / data.length * 0.8);
+
+        // Add wicks
+        g.selectAll(".wick")
+            .data(data)
+            .enter().append("line")
+            .attr("class", "wick")
+            .attr("x1", d => xScale(d.timestamp))
+            .attr("x2", d => xScale(d.timestamp))
+            .attr("y1", d => yScale(d.high))
+            .attr("y2", d => yScale(d.low))
+            .attr("stroke", d => d.close >= d.open ? this.colors.candleUp : this.colors.candleDown)
+            .attr("stroke-width", 1);
+
+        // Add candle bodies
+        g.selectAll(".candle")
+            .data(data)
+            .enter().append("rect")
+            .attr("class", "candle")
+            .attr("x", d => xScale(d.timestamp) - candleWidth / 2)
+            .attr("y", d => yScale(Math.max(d.open, d.close)))
             .attr("width", candleWidth)
-            .attr("height", d => Math.abs(priceScale(d.open) - priceScale(d.close)) || 1)
-            .style("fill", d => d.close >= d.open ? "#2ca02c" : "#d62728")
-            .style("stroke", d => d.close >= d.open ? "#2ca02c" : "#d62728")
-            .style("stroke-width", 1);
+            .attr("height", d => Math.abs(yScale(d.open) - yScale(d.close)) || 1)
+            .attr("fill", d => d.close >= d.open ? this.colors.candleUp : this.colors.candleDown)
+            .attr("stroke", d => d.close >= d.open ? this.colors.candleUp : this.colors.candleDown)
+            .attr("stroke-width", 1);
+    }
 
-        // Add tooltip interactions for both charts
-        const createTooltipHandler = (isVolumeChart = false) => {
-            return {
-                mouseover: (event, d) => {
-                    tooltip.style("opacity", 1);
-                    
-                    const formatTime = this.currentTimeRange === '1D' 
-                        ? d3.timeFormat("%H:%M")
-                        : d3.timeFormat("%m/%d %H:%M");
-                    
-                    const change = d.close - d.open;
-                    const changePercent = ((change / d.open) * 100).toFixed(2);
-                    const changeColor = change >= 0 ? "#2ca02c" : "#d62728";
-                    
-                    // Find MA values for this time
-                    const ma20Value = ma20.find(ma => ma.time.getTime() === d.time.getTime());
-                    const ma50Value = ma50.find(ma => ma.time.getTime() === d.time.getTime());
-                    
-                    tooltip.html(`
-                        <div style="font-weight: bold; margin-bottom: 4px;">${symbol} - ${formatTime(d.time)}</div>
-                        <div>Open: $${d.open.toFixed(2)}</div>
-                        <div>High: $${d.high.toFixed(2)}</div>
-                        <div>Low: $${d.low.toFixed(2)}</div>
-                        <div>Close: $${d.close.toFixed(2)}</div>
-                        <div style="color: ${changeColor};">
-                            Change: ${change >= 0 ? '+' : ''}$${change.toFixed(2)} (${changePercent}%)
-                        </div>
-                        <div>Volume: ${this.formatVolume(d.volume)}</div>
-                        ${ma20Value ? `<div style="color: #ff7f0e;">MA20: $${ma20Value.value.toFixed(2)}</div>` : ''}
-                        ${ma50Value ? `<div style="color: #1f77b4;">MA50: $${ma50Value.value.toFixed(2)}</div>` : ''}
-                    `)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 10) + "px");
-                },
-                mouseout: () => {
-                    tooltip.style("opacity", 0);
-                },
-                mousemove: (event) => {
-                    tooltip
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 10) + "px");
-                }
-            };
-        };
+    addVolumeBar(g, data, xScale, volumeScale) {
+        const barWidth = Math.max(1, (xScale.range()[1] - xScale.range()[0]) / data.length * 0.6);
 
-        const tooltipHandler = createTooltipHandler();
+        g.selectAll(".volume")
+            .data(data)
+            .enter().append("rect")
+            .attr("class", "volume")
+            .attr("x", d => xScale(d.timestamp) - barWidth / 2)
+            .attr("y", d => volumeScale(d.volume))
+            .attr("width", barWidth)
+            .attr("height", d => volumeScale(0) - volumeScale(d.volume))
+            .attr("fill", d => d.close >= d.open ? this.colors.volumeUp : this.colors.volumeDown)
+            .attr("opacity", 0.7);
+    }
 
-        // Add interactions to candlesticks
-        candlesticks
-            .on("mouseover", tooltipHandler.mouseover)
-            .on("mouseout", tooltipHandler.mouseout)
-            .on("mousemove", tooltipHandler.mousemove);
+    addMovingAverages(g, data, xScale, yScale) {
+        if (data.length < 20) return;
 
-        // Add interactions to volume bars
-        volumeBars
-            .on("mouseover", tooltipHandler.mouseover)
-            .on("mouseout", tooltipHandler.mouseout)
-            .on("mousemove", tooltipHandler.mousemove);
+        // Calculate SMA20
+        const sma20Data = this.calculateSMA(data, 20);
+        if (sma20Data.length > 0) {
+            const line20 = d3.line()
+                .x(d => xScale(d.timestamp))
+                .y(d => yScale(d.sma))
+                .curve(d3.curveMonotoneX);
 
-        // Add legend for moving averages
-        const legend = movingAverageContainer.append("g")
-            .attr("class", "legend")
-            .attr("transform", `translate(${width - 120}, 20)`);
-
-        if (ma20.length > 0) {
-            const ma20Legend = legend.append("g").attr("transform", "translate(0, 0)");
-            ma20Legend.append("line")
-                .attr("x1", 0).attr("x2", 15)
-                .attr("y1", 0).attr("y2", 0)
-                .style("stroke", "#ff7f0e").style("stroke-width", 2);
-            ma20Legend.append("text")
-                .attr("x", 20).attr("y", 0).attr("dy", "0.35em")
-                .style("font-size", "10px").style("fill", "#333")
-                .text("MA20");
+            g.append("path")
+                .datum(sma20Data)
+                .attr("class", "ma-line sma-20")
+                .attr("d", line20)
+                .attr("stroke", this.colors.sma20)
+                .attr("stroke-width", 1.5)
+                .attr("fill", "none")
+                .attr("opacity", 0.8);
         }
 
-        if (ma50.length > 0) {
-            const ma50Legend = legend.append("g").attr("transform", "translate(0, 15)");
-            ma50Legend.append("line")
-                .attr("x1", 0).attr("x2", 15)
-                .attr("y1", 0).attr("y2", 0)
-                .style("stroke", "#1f77b4").style("stroke-width", 2);
-            ma50Legend.append("text")
-                .attr("x", 20).attr("y", 0).attr("dy", "0.35em")
-                .style("font-size", "10px").style("fill", "#333")
-                .text("MA50");
+        // Calculate SMA50 if enough data
+        if (data.length >= 50) {
+            const sma50Data = this.calculateSMA(data, 50);
+            if (sma50Data.length > 0) {
+                const line50 = d3.line()
+                    .x(d => xScale(d.timestamp))
+                    .y(d => yScale(d.sma))
+                    .curve(d3.curveMonotoneX);
+
+                g.append("path")
+                    .datum(sma50Data)
+                    .attr("class", "ma-line sma-50")
+                    .attr("d", line50)
+                    .attr("stroke", this.colors.sma50)
+                    .attr("stroke-width", 1.5)
+                    .attr("fill", "none")
+                    .attr("opacity", 0.8);
+            }
         }
     }
 
-    formatVolumeShort(volume) {
-        if (volume >= 1000000) {
-            return (volume / 1000000).toFixed(0) + 'M';
-        } else if (volume >= 1000) {
-            return (volume / 1000).toFixed(0) + 'K';
+    calculateSMA(data, period) {
+        const result = [];
+        for (let i = period - 1; i < data.length; i++) {
+            const sum = data.slice(i - period + 1, i + 1)
+                .reduce((acc, d) => acc + d.close, 0);
+            result.push({
+                timestamp: data[i].timestamp,
+                sma: sum / period
+            });
         }
-        return volume.toString();
+        return result;
+    }
+
+    addAxes(g, width, height, xScale, yScale) {
+        // X-axis
+        g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(0,${height - 60})`)
+            .call(d3.axisBottom(xScale)
+                .tickFormat(d3.timeFormat("%H:%M"))
+                .tickSize(5))
+            .selectAll("text")
+            .style("fill", this.colors.textSecondary)
+            .style("font-size", "11px");
+
+        // Y-axis (price)
+        g.append("g")
+            .attr("class", "axis")
+            .attr("transform", `translate(${width}, 0)`)
+            .call(d3.axisRight(yScale)
+                .tickFormat(d => `$${d.toFixed(2)}`)
+                .tickSize(5))
+            .selectAll("text")
+            .style("fill", this.colors.textSecondary)
+            .style("font-size", "11px");
+
+        // Style axis paths
+        g.selectAll(".axis path, .axis line")
+            .style("stroke", this.colors.axis);
+    }
+
+    addCrosshair(g, width, height, data, xScale, yScale, symbol) {
+        const tooltip = d3.select("body").append("div")
+            .attr("class", "chart-tooltip")
+            .style("opacity", 0);
+
+        const crosshairX = g.append("line")
+            .attr("class", "crosshair-x")
+            .attr("stroke", this.colors.textMuted)
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "3,3")
+            .style("opacity", 0);
+
+        const crosshairY = g.append("line")
+            .attr("class", "crosshair-y")
+            .attr("stroke", this.colors.textMuted)
+            .attr("stroke-width", 1)
+            .attr("stroke-dasharray", "3,3")
+            .style("opacity", 0);
+
+        g.append("rect")
+            .attr("width", width)
+            .attr("height", height - 60)
+            .attr("fill", "transparent")
+            .on("mousemove", (event) => {
+                const [mouseX, mouseY] = d3.pointer(event);
+                const date = xScale.invert(mouseX);
+                const price = yScale.invert(mouseY);
+
+                // Find closest data point
+                const bisect = d3.bisector(d => d.timestamp).left;
+                const index = bisect(data, date, 1);
+                const dataPoint = data[index - 1] || data[index];
+
+                if (dataPoint) {
+                    crosshairX
+                        .attr("x1", mouseX)
+                        .attr("x2", mouseX)
+                        .attr("y1", 0)
+                        .attr("y2", height - 60)
+                        .style("opacity", 1);
+
+                    crosshairY
+                        .attr("x1", 0)
+                        .attr("x2", width)
+                        .attr("y1", mouseY)
+                        .attr("y2", mouseY)
+                        .style("opacity", 1);
+
+                    tooltip.transition().duration(200).style("opacity", 0.9);
+                    tooltip.html(`
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">${symbol}</span>
+                            <span class="tooltip-value">${dataPoint.timestamp.toLocaleTimeString()}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">O:</span>
+                            <span class="tooltip-value">$${dataPoint.open.toFixed(2)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">H:</span>
+                            <span class="tooltip-value">$${dataPoint.high.toFixed(2)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">L:</span>
+                            <span class="tooltip-value">$${dataPoint.low.toFixed(2)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">C:</span>
+                            <span class="tooltip-value">$${dataPoint.close.toFixed(2)}</span>
+                        </div>
+                        <div class="tooltip-row">
+                            <span class="tooltip-label">Vol:</span>
+                            <span class="tooltip-value">${this.formatVolume(dataPoint.volume)}</span>
+                        </div>
+                    `)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+                }
+            })
+            .on("mouseout", () => {
+                crosshairX.style("opacity", 0);
+                crosshairY.style("opacity", 0);
+                tooltip.transition().duration(500).style("opacity", 0);
+            });
+    }
+
+    updateSymbolInfo(symbol, data) {
+        if (!data || data.length === 0) return;
+        
+        const latest = data[data.length - 1];
+        const previous = data.length > 1 ? data[data.length - 2] : null;
+        
+        // Update current price
+        const currentPriceEl = document.getElementById(`${symbol}-current-price`);
+        if (currentPriceEl) {
+            const price = latest.close_price || latest.close;
+            currentPriceEl.textContent = `$${price.toFixed(2)}`;
+        }
+        
+        // Update price change
+        const priceChangeEl = document.getElementById(`${symbol}-price-change`);
+        if (priceChangeEl && previous) {
+            const currentPrice = latest.close_price || latest.close;
+            const previousPrice = previous.close_price || previous.close;
+            const change = ((currentPrice - previousPrice) / previousPrice) * 100;
+            const changeText = change > 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
+            priceChangeEl.textContent = changeText;
+            priceChangeEl.className = `badge ${change > 0 ? 'bg-success' : change < 0 ? 'bg-danger' : 'bg-secondary'}`;
+        }
+        
+        // Update OHLC data
+        const openEl = document.getElementById(`${symbol}-open`);
+        const highEl = document.getElementById(`${symbol}-high`);
+        const lowEl = document.getElementById(`${symbol}-low`);
+        const closeEl = document.getElementById(`${symbol}-close`);
+        const volumeEl = document.getElementById(`${symbol}-volume`);
+        
+        if (openEl) openEl.textContent = `$${(latest.open_price || latest.open).toFixed(2)}`;
+        if (highEl) highEl.textContent = `$${(latest.high_price || latest.high).toFixed(2)}`;
+        if (lowEl) lowEl.textContent = `$${(latest.low_price || latest.low).toFixed(2)}`;
+        if (closeEl) closeEl.textContent = `$${(latest.close_price || latest.close).toFixed(2)}`;
+        if (volumeEl) volumeEl.textContent = this.formatVolume(latest.volume);
     }
 
     async loadCollectionStatus() {
@@ -742,51 +611,169 @@ class MarketWatchDashboard {
                 this.updateCollectionStatus(data);
             }
         } catch (error) {
-            if (error.name === 'AbortError') throw error; // Re-throw abort errors
+            if (error.name === 'AbortError') throw error;
             console.error('Failed to load collection status:', error);
         }
     }
 
-    updateMarketStatus(isOpen) {
-        const statusElement = document.getElementById('market-status');
-        if (statusElement) {
-            statusElement.textContent = `Market Status: ${isOpen ? 'Open' : 'Closed'}`;
-            statusElement.className = `badge ${isOpen ? 'bg-success' : 'bg-danger'}`;
+    async loadTechnicalAnalysis() {
+        try {
+            const container = document.getElementById('technical-indicators');
+            container.innerHTML = '';
+            
+            for (const symbol of this.symbols) {
+                const response = await fetch(`/api/indicators/${symbol}`, {
+                    signal: this.loadingController?.signal
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displayTechnicalIndicators(container, symbol, data);
+                }
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            console.error('Failed to load technical analysis:', error);
         }
     }
 
-    updateSymbolInfo(symbol, chartData) {
-        if (!chartData || chartData.length === 0) return;
-        
-        const latest = chartData[chartData.length - 1];
-        const previous = chartData.length > 1 ? chartData[chartData.length - 2] : null;
-        
-        // Update current price
-        const currentPriceEl = document.getElementById(`${symbol}-current-price`);
-        if (currentPriceEl) {
-            currentPriceEl.textContent = this.formatPrice(latest.close);
+    async loadTradingSetups() {
+        try {
+            const container = document.getElementById('trading-setups');
+            container.innerHTML = '';
+            
+            const response = await fetch('/api/setups/high-quality', {
+                signal: this.loadingController?.signal
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.displayTradingSetups(container, data);
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            console.error('Failed to load trading setups:', error);
         }
-        
-        // Update price change
-        const priceChangeEl = document.getElementById(`${symbol}-price-change`);
-        if (priceChangeEl && previous) {
-            const change = ((latest.close - previous.close) / previous.close) * 100;
-            const changeText = change > 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
-            priceChangeEl.textContent = changeText;
-            priceChangeEl.className = `badge ${change > 0 ? 'bg-success' : change < 0 ? 'bg-danger' : 'bg-secondary'}`;
+    }
+
+    async loadSupportResistance() {
+        try {
+            const container = document.getElementById('support-resistance');
+            container.innerHTML = '';
+            
+            for (const symbol of this.symbols) {
+                const response = await fetch(`/api/support-resistance/${symbol}/levels`, {
+                    signal: this.loadingController?.signal
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displaySupportResistance(container, symbol, data);
+                }
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            console.error('Failed to load support/resistance:', error);
         }
-        
-        // Update last price
-        const lastPriceEl = document.getElementById(`${symbol}-last-price`);
-        if (lastPriceEl) {
-            lastPriceEl.textContent = this.formatPrice(latest.close);
+    }
+
+    displayTechnicalIndicators(container, symbol, data) {
+        const indicators = data.indicators || {};
+        const div = document.createElement('div');
+        div.className = 'mb-3 p-3 border-tv rounded';
+        div.innerHTML = `
+            <h6 class="text-tv-primary mb-3">${symbol}</h6>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="indicator-label">RSI (14)</div>
+                    <div class="indicator-value ${this.getRSIClass(indicators.rsi_14)}">${indicators.rsi_14?.toFixed(2) || '--'}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="indicator-label">SMA (20)</div>
+                    <div class="indicator-value text-tv-primary">$${indicators.sma_20?.toFixed(2) || '--'}</div>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <div class="indicator-label">MACD</div>
+                    <div class="indicator-value ${this.getMACDClass(indicators.macd_line, indicators.macd_signal)}">${indicators.macd_line?.toFixed(3) || '--'}</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="indicator-label">Volume Ratio</div>
+                    <div class="indicator-value ${indicators.volume_ratio > 1.5 ? 'text-warning' : 'text-tv-secondary'}">${indicators.volume_ratio?.toFixed(2) || '--'}</div>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    }
+
+    getRSIClass(rsi) {
+        if (!rsi) return 'text-tv-secondary';
+        if (rsi > 70) return 'rsi-overbought';
+        if (rsi < 30) return 'rsi-oversold';
+        return 'rsi-neutral';
+    }
+
+    getMACDClass(macdLine, macdSignal) {
+        if (!macdLine || !macdSignal) return 'text-tv-secondary';
+        return macdLine > macdSignal ? 'macd-bullish' : 'macd-bearish';
+    }
+
+    displayTradingSetups(container, data) {
+        if (!data.setups || data.setups.length === 0) {
+            container.innerHTML = '<div class="text-tv-muted">No high-quality setups found</div>';
+            return;
         }
 
-        // Update last volume
-        const lastVolumeEl = document.getElementById(`${symbol}-last-volume`);
-        if (lastVolumeEl) {
-            lastVolumeEl.textContent = this.formatVolume(latest.volume);
-        }
+        data.setups.forEach(setup => {
+            const div = document.createElement('div');
+            div.className = 'mb-3 p-3 setup-card rounded';
+            div.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-tv-primary">${setup.symbol}</h6>
+                        <p class="mb-1"><strong>${setup.setup_type}</strong> - ${setup.direction}</p>
+                        <small class="text-tv-secondary">Quality: ${setup.quality_score?.toFixed(1)}/100</small>
+                    </div>
+                    <span class="badge confidence-${setup.confidence}">${setup.confidence}</span>
+                </div>
+                <div class="mt-2">
+                    <small class="text-tv-secondary">
+                        Entry: <span class="text-tv-primary">$${setup.entry_price?.toFixed(2)}</span> | 
+                        Target: <span class="text-success">$${setup.target1?.toFixed(2)}</span> | 
+                        Stop: <span class="text-danger">$${setup.stop_loss?.toFixed(2)}</span>
+                    </small>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    displaySupportResistance(container, symbol, data) {
+        if (!data.levels || data.levels.length === 0) return;
+
+        const div = document.createElement('div');
+        div.className = 'mb-3';
+        div.innerHTML = `
+            <h6 class="text-tv-primary">${symbol}</h6>
+            <div class="row">
+                ${data.levels.slice(0, 4).map(level => `
+                    <div class="col-md-3">
+                        <div class="text-center p-2 border-tv rounded bg-tv-surface-light">
+                            <div class="indicator-value level-${level.level_type}">
+                                $${level.level.toFixed(2)}
+                            </div>
+                            <div class="indicator-label">${level.level_type}</div>
+                            <div class="strength-indicator mt-1">
+                                <div class="strength-fill" style="width: ${(level.strength || 0) * 10}%"></div>
+                            </div>
+                            <small class="text-tv-muted">Strength: ${level.strength?.toFixed(1)}</small>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        container.appendChild(div);
     }
 
     updateCollectionStatus(status) {
@@ -821,7 +808,6 @@ class MarketWatchDashboard {
             
             if (response.ok) {
                 this.showSuccess('Collection triggered successfully');
-                // Refresh status after a short delay
                 setTimeout(() => this.loadCollectionStatus(), 2000);
             } else {
                 const error = await response.json();
@@ -833,16 +819,19 @@ class MarketWatchDashboard {
         }
     }
 
+    toggleSymbolManagement() {
+        const panel = document.getElementById('symbol-management-panel');
+        panel.classList.toggle('d-none');
+    }
+
     refreshCharts() {
         this.loadAllChartData();
     }
 
     resizeCharts() {
-        // Recreate charts on resize
         this.symbols.forEach(symbol => {
-            this.createD3Chart(symbol);
+            this.createTradingViewChart(symbol);
         });
-        // Reload data to update the resized charts
         setTimeout(() => this.loadAllChartData(), 100);
     }
 
@@ -852,115 +841,11 @@ class MarketWatchDashboard {
         }, this.updateInterval);
     }
 
-    stopAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
-    }
-
     updateLastUpdateTime() {
         const lastUpdateEl = document.getElementById('last-update');
         if (lastUpdateEl) {
             lastUpdateEl.textContent = `Last Update: ${new Date().toLocaleTimeString()}`;
         }
-    }
-
-    getSymbolColor(symbol, alpha = 1) {
-        const colors = {
-            'PLTR': '#1f77b4',
-            'TSLA': '#ff7f0e',
-            'BBAI': '#2ca02c',
-            'MSFT': '#d62728',
-            'NPWR': '#9467bd'
-        };
-        const color = colors[symbol] || '#1f77b4';
-        
-        if (alpha === 1) {
-            return color;
-        } else {
-            // Convert hex to rgba
-            const r = parseInt(color.slice(1, 3), 16);
-            const g = parseInt(color.slice(3, 5), 16);
-            const b = parseInt(color.slice(5, 7), 16);
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-    }
-
-    showHistoricalDataNotification(symbol, historicalDate) {
-        // Show global notification if not already shown
-        if (!document.getElementById('historical-data-banner')) {
-            this.showGlobalHistoricalNotification(historicalDate);
-        }
-        
-        // Add badge to specific chart
-        const chartCard = document.querySelector(`#chart-${symbol}`).closest('.card');
-        if (chartCard) {
-            const header = chartCard.querySelector('.card-header');
-            if (header && !header.querySelector('.historical-badge')) {
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-warning historical-badge ms-2';
-                badge.textContent = `Showing ${historicalDate.toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
-                header.appendChild(badge);
-            }
-        }
-    }
-
-    showGlobalHistoricalNotification(historicalDate) {
-        const dateStr = historicalDate.toLocaleDateString([], {
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric'
-        });
-        
-        const banner = document.createElement('div');
-        banner.id = 'historical-data-banner';
-        banner.className = 'alert alert-info alert-dismissible fade show mb-3';
-        banner.innerHTML = `
-            <i class="bi bi-info-circle me-2"></i>
-            <strong>Showing historical data:</strong> Displaying trading data from ${dateStr} (last trading day)
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        // Insert banner after the controls section
-        const controlsRow = document.querySelector('.row.mb-4');
-        if (controlsRow) {
-            controlsRow.insertAdjacentElement('afterend', banner);
-        }
-    }
-
-    clearHistoricalNotifications() {
-        // Remove global banner
-        const banner = document.getElementById('historical-data-banner');
-        if (banner) {
-            banner.remove();
-        }
-        
-        // Remove chart badges
-        document.querySelectorAll('.historical-badge').forEach(badge => {
-            badge.remove();
-        });
-    }
-
-    getLastTradingDay(date) {
-        const result = new Date(date);
-        const dayOfWeek = result.getDay();
-        
-        if (dayOfWeek === 0) {
-            // Sunday - go back to Friday
-            result.setDate(result.getDate() - 2);
-        } else if (dayOfWeek === 6) {
-            // Saturday - go back to Friday
-            result.setDate(result.getDate() - 1);
-        } else if (dayOfWeek === 1) {
-            // Monday - go back to Friday (3 days)
-            result.setDate(result.getDate() - 3);
-        } else {
-            // Tuesday-Friday - go back one day
-            result.setDate(result.getDate() - 1);
-        }
-        
-        return result;
     }
 
     formatVolume(volume) {
@@ -972,47 +857,30 @@ class MarketWatchDashboard {
         return volume.toLocaleString();
     }
 
-    formatPrice(price) {
-        return '$' + price.toFixed(2);
-    }
-
     showLoading() {
         this.isLoading = true;
-        
-        // Show spinner, hide icon
         document.getElementById('refresh-spinner').classList.remove('d-none');
         document.getElementById('refresh-icon').classList.add('d-none');
-        
-        // Update text and disable button
         document.getElementById('refresh-text').textContent = 'Loading...';
         document.getElementById('refresh-btn').disabled = true;
-        
-        // Show cancel button
         document.getElementById('cancel-refresh-btn').classList.remove('d-none');
     }
 
     hideLoading() {
         this.isLoading = false;
         this.loadingController = null;
-        
-        // Hide spinner, show icon
         document.getElementById('refresh-spinner').classList.add('d-none');
         document.getElementById('refresh-icon').classList.remove('d-none');
-        
-        // Reset text and enable button
         document.getElementById('refresh-text').textContent = 'Refresh';
         document.getElementById('refresh-btn').disabled = false;
-        
-        // Hide cancel button
         document.getElementById('cancel-refresh-btn').classList.add('d-none');
     }
 
     cancelLoading() {
         if (this.loadingController) {
-            console.log('Cancelling data loading...');
             this.loadingController.abort();
             this.hideLoading();
-            this.showSuccess('Data loading cancelled');
+            this.showSuccess('Loading cancelled');
         }
     }
 
@@ -1026,12 +894,8 @@ class MarketWatchDashboard {
 
     showToast(message, type) {
         const container = document.getElementById('toast-container');
-        const toastId = 'toast-' + Date.now();
-        
         const toast = document.createElement('div');
-        toast.id = toastId;
         toast.className = `toast toast-${type}`;
-        toast.setAttribute('role', 'alert');
         toast.innerHTML = `
             <div class="toast-header">
                 <strong class="me-auto">${type === 'success' ? 'Success' : 'Error'}</strong>
@@ -1041,267 +905,18 @@ class MarketWatchDashboard {
         `;
         
         container.appendChild(toast);
-        
         const bsToast = new bootstrap.Toast(toast);
         bsToast.show();
         
-        // Remove toast element after it's hidden
         toast.addEventListener('hidden.bs.toast', () => {
             toast.remove();
         });
-    }
-
-    // Symbol Management Methods
-    toggleSymbolManagement() {
-        const panel = document.getElementById('symbol-management-panel');
-        const btn = document.getElementById('manage-symbols-btn');
-        
-        if (panel.classList.contains('d-none')) {
-            panel.classList.remove('d-none');
-            btn.innerHTML = '<i class="bi bi-x-lg"></i> Close';
-            this.loadWatchedSymbolsList();
-        } else {
-            panel.classList.add('d-none');
-            btn.innerHTML = '<i class="bi bi-gear"></i> Manage Symbols';
-        }
-    }
-
-    async loadWatchedSymbolsList() {
-        try {
-            const response = await fetch('/api/symbols');
-            const data = await response.json();
-            
-            const container = document.getElementById('watched-symbols-list');
-            
-            if (response.ok && data.symbols && data.symbols.length > 0) {
-                container.innerHTML = '';
-                
-                data.symbols.forEach(symbol => {
-                    const symbolBadge = document.createElement('div');
-                    symbolBadge.className = 'badge bg-primary fs-6 p-2 d-flex align-items-center';
-                    symbolBadge.innerHTML = `
-                        <span class="me-2">${symbol.symbol}</span>
-                        <span class="data-status" id="status-${symbol.symbol}">
-                            <i class="bi bi-hourglass-split text-warning" title="Checking data..."></i>
-                        </span>
-                        <button class="btn btn-sm btn-outline-light border-0 p-0 ms-1"
-                                onclick="window.dashboard.removeSymbol('${symbol.symbol}')"
-                                title="Remove ${symbol.symbol}">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    `;
-                    container.appendChild(symbolBadge);
-                    
-                    // Check data availability for this symbol
-                    this.checkSymbolData(symbol.symbol);
-                });
-            } else {
-                container.innerHTML = '<div class="text-muted">No symbols are currently being watched.</div>';
-            }
-        } catch (error) {
-            console.error('Failed to load watched symbols:', error);
-            document.getElementById('watched-symbols-list').innerHTML =
-                '<div class="text-danger">Failed to load symbols</div>';
-        }
-    }
-
-    async addNewSymbol() {
-        const symbolInput = document.getElementById('new-symbol-input');
-        const nameInput = document.getElementById('new-symbol-name');
-        const addBtn = document.getElementById('add-symbol-btn');
-        const spinner = document.getElementById('add-symbol-spinner');
-        const btnText = document.getElementById('add-symbol-text');
-        
-        const symbol = symbolInput.value.trim().toUpperCase();
-        const name = nameInput.value.trim();
-        
-        if (!symbol) {
-            this.showError('Please enter a ticker symbol');
-            symbolInput.focus();
-            return;
-        }
-
-        // Show loading state
-        spinner.classList.remove('d-none');
-        btnText.textContent = 'Adding...';
-        addBtn.disabled = true;
-
-        try {
-            const response = await fetch('/api/symbols', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    symbol: symbol,
-                    name: name
-                })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.showSuccess(`Symbol ${symbol} added successfully`);
-                
-                // Clear inputs
-                symbolInput.value = '';
-                nameInput.value = '';
-                
-                // Reload symbols list
-                this.loadWatchedSymbolsList();
-                
-                // Refresh the dashboard with new symbols
-                setTimeout(async () => {
-                    await this.loadSymbols();
-                    this.createChartsContainer();
-                    this.initializeCharts();
-                    this.loadDashboardData();
-                }, 1000);
-                
-            } else {
-                throw new Error(data.message || 'Failed to add symbol');
-            }
-        } catch (error) {
-            console.error('Failed to add symbol:', error);
-            this.showError('Failed to add symbol: ' + error.message);
-        } finally {
-            // Hide loading state
-            spinner.classList.add('d-none');
-            btnText.textContent = 'Add Symbol';
-            addBtn.disabled = false;
-        }
-    }
-
-    async removeSymbol(symbol) {
-        try {
-            const response = await fetch(`/api/symbols/${symbol}`, {
-                method: 'DELETE'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.showSuccess(`Symbol ${symbol} removed successfully`);
-                
-                // Reload symbols list
-                this.loadWatchedSymbolsList();
-                
-                // Refresh the dashboard with updated symbols
-                setTimeout(async () => {
-                    await this.loadSymbols();
-                    this.createChartsContainer();
-                    this.initializeCharts();
-                    this.loadDashboardData();
-                }, 1000);
-                
-            } else {
-                throw new Error(data.message || 'Failed to remove symbol');
-            }
-        } catch (error) {
-            console.error('Failed to remove symbol:', error);
-            this.showError('Failed to remove symbol: ' + error.message);
-        }
-    }
-
-    async checkSymbolData(symbol) {
-        try {
-            const response = await fetch(`/api/symbols/${symbol}/check`);
-            const data = await response.json();
-            
-            const statusElement = document.getElementById(`status-${symbol}`);
-            if (!statusElement) return;
-            
-            if (response.ok) {
-                if (data.has_data && data.data_points > 0) {
-                    // Symbol has data
-                    statusElement.innerHTML = `
-                        <i class="bi bi-check-circle-fill text-success"
-                           title="${data.data_points} data points"></i>
-                    `;
-                } else {
-                    // Symbol has no data - show collect button
-                    statusElement.innerHTML = `
-                        <button class="btn btn-sm btn-outline-warning border-0 p-0"
-                                onclick="window.dashboard.collectSymbolData('${symbol}')"
-                                title="No data - click to collect">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                        </button>
-                    `;
-                }
-            } else {
-                // Error checking data
-                statusElement.innerHTML = `
-                    <i class="bi bi-question-circle text-secondary"
-                       title="Unable to check data status"></i>
-                `;
-            }
-        } catch (error) {
-            console.error('Failed to check symbol data:', error);
-            const statusElement = document.getElementById(`status-${symbol}`);
-            if (statusElement) {
-                statusElement.innerHTML = `
-                    <i class="bi bi-question-circle text-secondary"
-                       title="Error checking data"></i>
-                `;
-            }
-        }
-    }
-
-    async collectSymbolData(symbol) {
-        try {
-            const statusElement = document.getElementById(`status-${symbol}`);
-            if (statusElement) {
-                statusElement.innerHTML = `
-                    <span class="spinner-border spinner-border-sm text-info"
-                          title="Collecting data..."></span>
-                `;
-            }
-
-            const response = await fetch(`/api/symbols/${symbol}/collect`, {
-                method: 'POST'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                this.showSuccess(`Data collection started for ${symbol}`);
-                
-                // Check status again after a delay
-                setTimeout(() => {
-                    this.checkSymbolData(symbol);
-                }, 3000);
-                
-                // Also refresh the dashboard data
-                setTimeout(() => {
-                    this.loadDashboardData();
-                }, 5000);
-                
-            } else {
-                throw new Error(data.message || 'Failed to trigger data collection');
-            }
-        } catch (error) {
-            console.error('Failed to collect symbol data:', error);
-            this.showError('Failed to collect data: ' + error.message);
-            
-            // Reset status indicator
-            setTimeout(() => {
-                this.checkSymbolData(symbol);
-            }, 1000);
-        }
     }
 }
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Small delay to ensure all elements are rendered
     setTimeout(() => {
         window.dashboard = new MarketWatchDashboard();
     }, 100);
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (window.dashboard) {
-        window.dashboard.stopAutoRefresh();
-    }
 });

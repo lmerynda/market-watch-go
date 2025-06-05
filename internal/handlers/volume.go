@@ -400,15 +400,10 @@ func (vh *VolumeHandler) GetWatchedSymbols(c *gin.Context) {
 		return
 	}
 
-	// Convert to slice of values for JSON response
-	symbolValues := make([]models.WatchedSymbol, len(symbols))
-	for i, s := range symbols {
-		symbolValues[i] = *s
-	}
-
+	// Convert to slice of values for JSON response (symbols is already []models.WatchedSymbol)
 	response := models.WatchedSymbolsResponse{
-		Symbols: symbolValues,
-		Count:   len(symbolValues),
+		Symbols: symbols,
+		Count:   len(symbols),
 	}
 
 	c.JSON(http.StatusOK, response)

@@ -1,762 +1,618 @@
-/* Market Watch Dashboard Styles */
-
+/* TradingView-Style Dashboard Theme */
 :root {
-    --primary-color: #007bff;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --warning-color: #ffc107;
-    --info-color: #17a2b8;
-    --dark-color: #343a40;
-    --light-color: #f8f9fa;
-    --border-radius: 0.375rem;
-    --box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    /* TradingView Dark Theme Colors */
+    --tv-background: #131722;
+    --tv-surface: #1e222d;
+    --tv-surface-light: #2a2e39;
+    --tv-border: #363a45;
+    --tv-text-primary: #d1d4dc;
+    --tv-text-secondary: #787b86;
+    --tv-text-muted: #5d606b;
+
+    /* TradingView Chart Colors */
+    --tv-green: #26a69a;
+    --tv-red: #ef5350;
+    --tv-blue: #2196f3;
+    --tv-orange: #ff9800;
+    --tv-purple: #9c27b0;
+    --tv-yellow: #ffeb3b;
+
+    /* Candlestick Colors */
+    --tv-candle-up: #26a69a;
+    --tv-candle-down: #ef5350;
+    --tv-candle-up-border: #26a69a;
+    --tv-candle-down-border: #ef5350;
+
+    /* Volume Colors */
+    --tv-volume-up: rgba(38, 166, 154, 0.6);
+    --tv-volume-down: rgba(239, 83, 80, 0.6);
+
+    /* Grid and Axis */
+    --tv-grid: rgba(120, 123, 134, 0.1);
+    --tv-axis: #363a45;
+
+    /* Gradients */
+    --tv-gradient-primary: linear-gradient(135deg, #2196f3 0%, #21cbf3 100%);
+    --tv-gradient-success: linear-gradient(135deg, #26a69a 0%, #4caf50 100%);
+    --tv-gradient-danger: linear-gradient(135deg, #ef5350 0%, #f44336 100%);
+
+    /* Shadows */
+    --tv-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --tv-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --tv-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #f5f5f5;
-    font-size: 14px;
+    background-color: var(--tv-background);
+    color: var(--tv-text-primary);
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
 }
 
-/* Financial Chart Container */
-.financial-chart-container {
-    position: relative;
-    width: 100%;
-    overflow: hidden;
+/* TradingView-style Scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-.financial-chart-container svg {
-    max-height: 100%;
-    max-width: 100%;
-    display: block;
+::-webkit-scrollbar-track {
+    background: var(--tv-surface);
 }
 
-/* D3 Chart Styles */
-.financial-chart-container .axis {
-    font-size: 11px;
+::-webkit-scrollbar-thumb {
+    background: var(--tv-border);
+    border-radius: 4px;
 }
 
-.financial-chart-container .axis path,
-.financial-chart-container .axis line {
-    fill: none;
-    stroke: #666;
-    shape-rendering: crispEdges;
+::-webkit-scrollbar-thumb:hover {
+    background: var(--tv-text-muted);
 }
 
-.financial-chart-container .grid line {
-    stroke: #e0e0e0;
-    stroke-opacity: 0.5;
-    shape-rendering: crispEdges;
-}
-
-.financial-chart-container .grid path {
-    stroke-width: 0;
-}
-
-/* Price Chart Specific Styles */
-.financial-chart-container .price-grid line {
-    stroke: #f0f0f0;
-    stroke-opacity: 0.6;
-}
-
-.financial-chart-container .volume-grid line {
-    stroke: #f5f5f5;
-    stroke-opacity: 0.4;
-}
-
-/* Candlestick Chart Styles */
-.financial-chart-container .candlestick {
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.financial-chart-container .candlestick:hover .body {
-    stroke-width: 2;
-    filter: brightness(1.1);
-}
-
-.financial-chart-container .candlestick:hover .wick {
-    stroke-width: 2;
-}
-
-.financial-chart-container .candlestick .wick {
-    stroke: #666;
-    stroke-width: 1;
-    shape-rendering: crispEdges;
-}
-
-.financial-chart-container .candlestick .body {
-    stroke-width: 1;
-    shape-rendering: crispEdges;
-}
-
-/* Volume Bar Styles */
-.financial-chart-container .volume-bar {
-    cursor: pointer;
-    transition: opacity 0.15s ease;
-}
-
-.financial-chart-container .volume-bar:hover {
-    opacity: 0.8;
-}
-
-/* Moving Average Lines */
-.financial-chart-container .ma-20 {
-    stroke: #ff7f0e;
-    stroke-width: 2;
-    fill: none;
-    opacity: 0.8;
-}
-
-.financial-chart-container .ma-50 {
-    stroke: #1f77b4;
-    stroke-width: 2;
-    fill: none;
-    opacity: 0.8;
-}
-
-/* Chart Titles */
-.financial-chart-container .chart-title {
-    font-size: 12px;
+/* Typography */
+.text-gradient {
+    background: var(--tv-gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     font-weight: 600;
-    fill: #333;
-    text-anchor: middle;
 }
 
-/* Legend Styles */
-.financial-chart-container .legend text {
-    font-size: 10px;
-    fill: #333;
-    font-weight: 500;
-}
-
-.financial-chart-container .legend line {
-    stroke-width: 2;
-}
-
-/* Enhanced Tooltip for Financial Charts */
-.financial-chart-container .financial-tooltip {
-    position: absolute;
-    padding: 12px;
-    background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(20, 20, 20, 0.95));
-    color: white;
-    border-radius: 8px;
-    font-size: 11px;
-    pointer-events: none;
-    z-index: 1000;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    max-width: 220px;
-    line-height: 1.5;
-    backdrop-filter: blur(4px);
-}
-
-.financial-chart-container .financial-tooltip div {
-    margin: 3px 0;
-}
-
-.financial-chart-container .financial-tooltip div:first-child {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--tv-text-primary);
     font-weight: 600;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Price change colors in tooltip */
-.tooltip-positive {
-    color: #4caf50 !important;
-    font-weight: 500;
+.text-muted {
+    color: var(--tv-text-muted) !important;
 }
 
-.tooltip-negative {
-    color: #f44336 !important;
-    font-weight: 500;
+.text-secondary {
+    color: var(--tv-text-secondary) !important;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .financial-chart-container {
-        height: 300px;
-    }
-
-    .financial-chart-container .axis {
-        font-size: 10px;
-    }
-
-    .financial-chart-container .chart-title {
-        font-size: 11px;
-    }
-
-    .financial-chart-container .financial-tooltip {
-        font-size: 10px;
-        padding: 8px;
-        max-width: 180px;
-    }
-}
-
-/* Chart container card adjustments */
-.card .financial-chart-container {
-    margin: -8px -12px -8px -12px;
-}
-
-/* Axis styling improvements */
-.financial-chart-container .price-axis text,
-.financial-chart-container .price-right-axis text {
-    fill: #333;
-    font-weight: 500;
-}
-
-.financial-chart-container .volume-axis text {
-    fill: #666;
-    font-size: 10px;
-}
-
-.financial-chart-container .x-axis text {
-    fill: #666;
-    font-weight: 500;
-}
-
-/* Hover effects for interactive elements */
-.financial-chart-container .candlestick:hover,
-.financial-chart-container .volume-bar:hover {
-    filter: brightness(1.1) saturate(1.2);
-}
-
-/* Grid line improvements */
-.financial-chart-container .price-grid .domain {
-    display: none;
-}
-
-.financial-chart-container .volume-grid .domain {
-    display: none;
-}
-
-/* Animation for chart updates */
-.financial-chart-container .candlestick,
-.financial-chart-container .volume-bar,
-.financial-chart-container .ma-20,
-.financial-chart-container .ma-50 {
-    transition: all 0.3s ease;
-}
-
-/* Card Enhancements */
+/* Cards - TradingView Style */
 .card {
-    border: none;
-    box-shadow: var(--box-shadow);
-    border-radius: var(--border-radius);
-    transition: box-shadow 0.15s ease-in-out;
+    background-color: var(--tv-surface);
+    border: 1px solid var(--tv-border);
+    border-radius: 6px;
+    box-shadow: var(--tv-shadow);
+    transition: all 0.2s ease;
 }
 
 .card:hover {
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border-color: var(--tv-text-muted);
+    box-shadow: var(--tv-shadow-lg);
 }
 
 .card-header {
-    background-color: white;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    background: linear-gradient(90deg, var(--tv-surface-light) 0%, var(--tv-surface) 100%);
+    color: var(--tv-text-primary);
+    border-bottom: 1px solid var(--tv-border);
+    border-radius: 6px 6px 0 0 !important;
+    padding: 12px 16px;
     font-weight: 600;
+    font-size: 14px;
 }
 
-/* Volume Stats Cards */
-.volume-stat-card {
-    text-align: center;
-    padding: 1rem;
-    border-radius: var(--border-radius);
-    background: white;
-    border: 1px solid #dee2e6;
-    transition: all 0.3s ease;
+.card-body {
+    background-color: var(--tv-surface);
+    color: var(--tv-text-primary);
+    padding: 16px;
 }
 
-.volume-stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+/* Financial Chart Container - TradingView Style */
+.financial-chart-container {
+    background: var(--tv-surface);
+    border: 1px solid var(--tv-border);
+    border-radius: 4px;
+    padding: 8px;
+    position: relative;
+    min-height: 350px;
 }
 
-.volume-stat-value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-bottom: 0.25rem;
+.financial-chart-container svg {
+    background: var(--tv-surface);
 }
 
-.volume-stat-label {
-    font-size: 0.875rem;
-    color: #6c757d;
+/* Navigation - TradingView Header Style */
+.navbar-dark {
+    background: var(--tv-surface-light) !important;
+    border-bottom: 1px solid var(--tv-border);
+    box-shadow: var(--tv-shadow);
+    padding: 8px 0;
+}
+
+.navbar-brand {
+    color: var(--tv-text-primary) !important;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.navbar-text {
+    color: var(--tv-text-secondary) !important;
+}
+
+/* Buttons - TradingView Style */
+.btn {
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 12px;
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: var(--tv-blue);
+    border-color: var(--tv-blue);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #1976d2;
+    border-color: #1976d2;
+}
+
+.btn-success {
+    background: var(--tv-green);
+    border-color: var(--tv-green);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #00897b;
+    border-color: #00897b;
+}
+
+.btn-outline-primary {
+    color: var(--tv-blue);
+    border-color: var(--tv-border);
+    background: var(--tv-surface);
+}
+
+.btn-outline-primary:hover,
+.btn-check:checked+.btn-outline-primary {
+    background: var(--tv-blue);
+    border-color: var(--tv-blue);
+    color: white;
+}
+
+.btn-outline-secondary {
+    color: var(--tv-text-secondary);
+    border-color: var(--tv-border);
+    background: var(--tv-surface);
+}
+
+.btn-outline-secondary:hover {
+    background: var(--tv-surface-light);
+    border-color: var(--tv-text-muted);
+    color: var(--tv-text-primary);
+}
+
+.btn-outline-info {
+    color: var(--tv-blue);
+    border-color: var(--tv-border);
+    background: var(--tv-surface);
+}
+
+.btn-outline-danger {
+    color: var(--tv-red);
+    border-color: var(--tv-border);
+    background: var(--tv-surface);
+}
+
+/* Badges - Trading Style */
+.badge {
+    border-radius: 3px;
+    font-weight: 500;
+    font-size: 11px;
+    padding: 4px 8px;
+}
+
+.bg-primary {
+    background-color: var(--tv-blue) !important;
+}
+
+.bg-success {
+    background-color: var(--tv-green) !important;
+}
+
+.bg-danger {
+    background-color: var(--tv-red) !important;
+}
+
+.bg-warning {
+    background-color: var(--tv-orange) !important;
+    color: white !important;
+}
+
+.bg-secondary {
+    background-color: var(--tv-text-muted) !important;
+}
+
+/* Alert Styles */
+.alert {
+    border: 1px solid var(--tv-border);
+    border-radius: 4px;
+    background: var(--tv-surface-light);
+    color: var(--tv-text-primary);
+}
+
+.alert-info {
+    border-color: rgba(33, 150, 243, 0.3);
+    background: rgba(33, 150, 243, 0.1);
+    color: #64b5f6;
+}
+
+.alert-success {
+    border-color: rgba(38, 166, 154, 0.3);
+    background: rgba(38, 166, 154, 0.1);
+    color: #4db6ac;
+}
+
+.alert-warning {
+    border-color: rgba(255, 152, 0, 0.3);
+    background: rgba(255, 152, 0, 0.1);
+    color: #ffb74d;
+}
+
+.alert-danger {
+    border-color: rgba(239, 83, 80, 0.3);
+    background: rgba(239, 83, 80, 0.1);
+    color: #e57373;
+}
+
+/* Form Controls */
+.form-control {
+    background-color: var(--tv-surface);
+    border: 1px solid var(--tv-border);
+    border-radius: 4px;
+    color: var(--tv-text-primary);
+    font-size: 13px;
+}
+
+.form-control:focus {
+    background-color: var(--tv-surface);
+    border-color: var(--tv-blue);
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+    color: var(--tv-text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--tv-text-muted);
+}
+
+/* Input Groups */
+.input-group-text {
+    background-color: var(--tv-surface-light);
+    border: 1px solid var(--tv-border);
+    color: var(--tv-text-secondary);
+}
+
+/* Tables */
+.table {
+    color: var(--tv-text-primary);
+}
+
+.table-dark {
+    background-color: var(--tv-surface);
+    border-color: var(--tv-border);
+}
+
+/* D3 Chart Styling - TradingView Theme */
+.axis {
+    font-size: 11px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.axis text {
+    fill: var(--tv-text-secondary);
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: var(--tv-axis);
+    shape-rendering: crispEdges;
+}
+
+.grid line {
+    stroke: var(--tv-grid);
+    stroke-dasharray: 1, 1;
+}
+
+.grid path {
+    stroke: none;
+}
+
+/* Candlestick Styles */
+.candle-up {
+    fill: var(--tv-candle-up);
+    stroke: var(--tv-candle-up-border);
+}
+
+.candle-down {
+    fill: var(--tv-candle-down);
+    stroke: var(--tv-candle-down-border);
+}
+
+.wick {
+    stroke-width: 1;
+}
+
+.wick-up {
+    stroke: var(--tv-candle-up);
+}
+
+.wick-down {
+    stroke: var(--tv-candle-down);
+}
+
+/* Volume Bars */
+.volume-up {
+    fill: var(--tv-volume-up);
+}
+
+.volume-down {
+    fill: var(--tv-volume-down);
+}
+
+/* Moving Averages */
+.ma-line {
+    fill: none;
+    stroke-width: 1.5;
+}
+
+.sma-20 {
+    stroke: var(--tv-orange);
+}
+
+.sma-50 {
+    stroke: var(--tv-blue);
+}
+
+.sma-200 {
+    stroke: var(--tv-purple);
+}
+
+/* Chart Tooltips */
+.chart-tooltip {
+    position: absolute;
+    background: var(--tv-surface-light);
+    border: 1px solid var(--tv-border);
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 11px;
+    color: var(--tv-text-primary);
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: var(--tv-shadow);
+}
+
+.tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 0;
+}
+
+.tooltip-label {
+    color: var(--tv-text-secondary);
+    margin-right: 8px;
+}
+
+.tooltip-value {
+    color: var(--tv-text-primary);
+    font-weight: 500;
+}
+
+/* Technical Indicators Display */
+.indicator-value {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
+.indicator-label {
+    font-size: 11px;
+    color: var(--tv-text-secondary);
+    margin-bottom: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
-.volume-stat-change {
-    font-size: 0.75rem;
-    margin-top: 0.25rem;
+/* RSI Color Coding */
+.rsi-overbought {
+    color: var(--tv-red);
 }
 
-.volume-stat-change.positive {
-    color: var(--success-color);
+.rsi-oversold {
+    color: var(--tv-green);
 }
 
-.volume-stat-change.negative {
-    color: var(--danger-color);
+.rsi-neutral {
+    color: var(--tv-text-primary);
 }
 
-.volume-stat-change.neutral {
-    color: var(--info-color);
+/* MACD Color Coding */
+.macd-bullish {
+    color: var(--tv-green);
 }
 
-/* Status Badges */
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 500;
+.macd-bearish {
+    color: var(--tv-red);
 }
 
-.status-badge.market-open {
-    background-color: #d4edda;
-    color: #155724;
+/* Trading Setup Cards */
+.setup-card {
+    border-left: 3px solid var(--tv-blue);
+    background: var(--tv-surface);
+    transition: all 0.2s ease;
 }
 
-.status-badge.market-closed {
-    background-color: #f8d7da;
-    color: #721c24;
+.setup-card:hover {
+    border-left-color: var(--tv-green);
+    background: var(--tv-surface-light);
 }
 
-.status-badge.collection-running {
-    background-color: #cce5ff;
-    color: #004085;
+.confidence-high {
+    color: var(--tv-green);
+    font-weight: 600;
 }
 
-/* Volume Change Indicators */
-.volume-change {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 500;
+.confidence-medium {
+    color: var(--tv-orange);
+    font-weight: 600;
 }
 
-.volume-change.up {
-    color: var(--success-color);
+.confidence-low {
+    color: var(--tv-text-muted);
+    font-weight: 600;
 }
 
-.volume-change.down {
-    color: var(--danger-color);
+/* Support/Resistance Levels */
+.level-support {
+    color: var(--tv-green);
+    font-weight: 600;
+    font-family: 'Monaco', 'Menlo', monospace;
 }
 
-.volume-change.flat {
-    color: var(--info-color);
+.level-resistance {
+    color: var(--tv-red);
+    font-weight: 600;
+    font-family: 'Monaco', 'Menlo', monospace;
 }
 
-.volume-change::before {
-    content: "";
-    width: 0;
-    height: 0;
-    border-style: solid;
+.strength-indicator {
+    display: inline-block;
+    width: 40px;
+    height: 3px;
+    background: rgba(120, 123, 134, 0.3);
+    border-radius: 2px;
+    overflow: hidden;
+    vertical-align: middle;
 }
 
-.volume-change.up::before {
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 6px solid var(--success-color);
+.strength-fill {
+    height: 100%;
+    background: var(--tv-gradient-primary);
+    transition: width 0.3s ease;
 }
 
-.volume-change.down::before {
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 6px solid var(--danger-color);
+/* Price Display */
+.price-up {
+    color: var(--tv-green);
 }
 
-.volume-change.flat::before {
-    width: 8px;
-    height: 2px;
-    background-color: var(--info-color);
-    border: none;
+.price-down {
+    color: var(--tv-red);
 }
 
-/* Button Enhancements */
-.btn {
-    font-weight: 500;
-    transition: all 0.15s ease-in-out;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-}
-
-.btn-group .btn-check:checked+.btn {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-    color: white;
+.price-neutral {
+    color: var(--tv-text-primary);
 }
 
 /* Loading States */
-.loading {
-    position: relative;
-    pointer-events: none;
+.spinner-border {
+    color: var(--tv-blue);
 }
 
-.loading::after {
-    content: "";
+.loading-overlay {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(19, 23, 34, 0.8);
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 6px;
     z-index: 10;
 }
 
-.loading::after {
-    content: "Loading...";
-    font-size: 0.875rem;
-    color: #6c757d;
+.loading-text {
+    margin-left: 10px;
+    color: var(--tv-text-primary);
+    font-weight: 500;
 }
 
-/* Responsive Chart Containers */
-@media (max-width: 768px) {
-    .chart-container {
-        height: 200px;
-    }
-
-    .card-header h6 {
-        font-size: 0.875rem;
-    }
-
-    .volume-stat-value {
-        font-size: 1.25rem;
-    }
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-    width: 6px;
-}
-
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.fade-in {
-    animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
-
-    100% {
-        opacity: 1;
-    }
-}
-
-.pulse {
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-/* Toast Styling */
+/* Toast Notifications */
 .toast {
-    border: none;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    background: var(--tv-surface-light);
+    border: 1px solid var(--tv-border);
+    color: var(--tv-text-primary);
 }
 
 .toast-success {
-    background-color: #d4edda;
-    color: #155724;
+    border-color: var(--tv-green);
 }
 
 .toast-error {
-    background-color: #f8d7da;
-    color: #721c24;
+    border-color: var(--tv-red);
 }
 
-.toast-warning {
-    background-color: #fff3cd;
-    color: #856404;
+.toast-header {
+    background: var(--tv-surface);
+    border-bottom: 1px solid var(--tv-border);
+    color: var(--tv-text-primary);
 }
 
-/* Market Status Indicator */
-.market-status {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.market-status::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: currentColor;
-}
-
-.market-status.open::before {
-    background-color: var(--success-color);
-    animation: pulse 2s ease-in-out infinite;
-}
-
-.market-status.closed::before {
-    background-color: var(--danger-color);
-}
-
-/* Chart Legend Custom Styles */
-.chart-legend {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 0.5rem;
-    font-size: 0.75rem;
-}
-
-.chart-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.chart-legend-color {
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
-}
-
-/* Error States */
-.error-state {
-    text-align: center;
-    padding: 2rem;
-    color: #6c757d;
-}
-
-.error-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-}
-
-/* Collection Status Indicators */
-.collection-indicator {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    background-color: #f8f9fa;
-    border: 1px solid #dee2e6;
-}
-
-.collection-indicator.active {
-    background-color: #cce5ff;
-    border-color: #99d3ff;
-    color: #004085;
-}
-
-.collection-indicator.error {
-    background-color: #f8d7da;
-    border-color: #f5c6cb;
-    color: #721c24;
-}
-
-/* Utility Classes */
-.text-gradient {
-    background: linear-gradient(45deg, var(--primary-color), var(--info-color));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.shadow-sm {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
-}
-
-.border-start-primary {
-    border-left: 3px solid var(--primary-color) !important;
-}
-
-.border-start-success {
-    border-left: 3px solid var(--success-color) !important;
-}
-
-.border-start-danger {
-    border-left: 3px solid var(--danger-color) !important;
-}
-
-.border-start-warning {
-    border-left: 3px solid var(--warning-color) !important;
-}
-
-/* Loading State Styles */
-#refresh-btn:disabled {
-    opacity: 0.8;
-}
-
-#refresh-spinner {
-    width: 1rem;
-    height: 1rem;
-}
-
-#cancel-refresh-btn {
-    transition: all 0.2s ease-in-out;
-}
-
-#cancel-refresh-btn:hover {
-    background-color: #dc3545;
-    border-color: #dc3545;
-    color: white;
-}
-
-/* Smooth transitions for loading states */
-.btn .spinner-border {
-    transition: opacity 0.2s ease-in-out;
-}
-
-.btn-icon-transition {
-    transition: all 0.2s ease-in-out;
-}
-
-/* Symbol Management Styles */
-#symbol-management-panel {
-    transition: all 0.3s ease-in-out;
-}
-
-#symbol-management-panel .card {
-    border-left: 4px solid var(--info-color);
-}
-
-#new-symbol-input,
-#new-symbol-name {
-    text-transform: uppercase;
-}
-
-#new-symbol-input:focus,
-#new-symbol-name:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-/* Watched Symbols List */
-#watched-symbols-list {
-    min-height: 50px;
-    padding: 0.5rem;
-    background-color: #f8f9fa;
-    border-radius: var(--border-radius);
-    border: 1px solid #dee2e6;
-}
-
-#watched-symbols-list .badge {
-    font-size: 0.875rem;
-    padding: 0.5rem 0.75rem;
-    margin: 0.25rem;
-    transition: all 0.2s ease-in-out;
-}
-
-#watched-symbols-list .badge:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-}
-
-#watched-symbols-list .badge button {
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s ease-in-out;
-}
-
-#watched-symbols-list .badge button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(1.1);
-}
-
-#watched-symbols-list .badge button i {
-    font-size: 0.7rem;
-}
-
-/* Add symbol form enhancements */
-.input-group .form-control:focus {
-    z-index: 3;
-}
-
-#add-symbol-btn {
-    white-space: nowrap;
-    min-width: 120px;
-}
-
-#add-symbol-btn:disabled {
-    opacity: 0.7;
-}
-
-/* Animation for symbol badges */
-@keyframes symbolAdded {
-    0% {
-        opacity: 0;
-        transform: scale(0.8) translateY(-10px);
+/* Responsive Design */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 12px;
     }
 
-    100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
+    .financial-chart-container {
+        padding: 4px;
+        min-height: 250px;
+    }
+
+    .navbar-brand {
+        font-size: 14px;
+    }
+
+    .btn {
+        font-size: 11px;
+        padding: 4px 8px;
     }
 }
 
-.symbol-badge-new {
-    animation: symbolAdded 0.3s ease-out;
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
 }
 
-/* Manage symbols button states */
-#manage-symbols-btn {
-    transition: all 0.2s ease-in-out;
-}
-
-#manage-symbols-btn:hover {
-    background-color: var(--info-color);
-    border-color: var(--info-color);
-    color: white;
-}
-
-/* Symbol management panel sliding effect */
-#symbol-management-panel:not(.d-none) {
-    animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
+@keyframes fadeIn {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(8px);
     }
 
     to {
@@ -765,103 +621,78 @@ body {
     }
 }
 
-/* Loading states for symbol operations */
-.symbol-loading {
-    position: relative;
-    overflow: hidden;
+.slide-up {
+    animation: slideUp 0.2s ease-out;
 }
 
-.symbol-loading::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg,
-            transparent,
-            rgba(255, 255, 255, 0.6),
-            transparent);
-    animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-    0% {
-        left: -100%;
+@keyframes slideUp {
+    from {
+        transform: translateY(10px);
+        opacity: 0;
     }
 
-    100% {
-        left: 100%;
+    to {
+        transform: translateY(0);
+        opacity: 1;
     }
 }
 
-/* Data status indicators */
-.data-status {
-    margin-left: 0.25rem;
-    margin-right: 0.25rem;
+/* Utility Classes */
+.bg-tv-surface {
+    background-color: var(--tv-surface) !important;
 }
 
-.data-status i {
-    font-size: 0.875rem;
+.bg-tv-surface-light {
+    background-color: var(--tv-surface-light) !important;
 }
 
-.data-status .spinner-border-sm {
-    width: 0.875rem;
-    height: 0.875rem;
+.text-tv-primary {
+    color: var(--tv-text-primary) !important;
 }
 
-.data-status button {
-    background: none !important;
-    border: none !important;
-    padding: 0 !important;
-    color: inherit;
-    transition: transform 0.2s ease-in-out;
+.text-tv-secondary {
+    color: var(--tv-text-secondary) !important;
 }
 
-.data-status button:hover {
-    transform: scale(1.2);
+.border-tv {
+    border-color: var(--tv-border) !important;
 }
 
-.data-status .text-success {
-    color: #28a745 !important;
+.shadow-tv {
+    box-shadow: var(--tv-shadow) !important;
 }
 
-.data-status .text-warning {
-    color: #ffc107 !important;
+/* Custom Border Radius */
+.border-radius-sm {
+    border-radius: 3px !important;
 }
 
-.data-status .text-info {
-    color: #17a2b8 !important;
+.border-radius-md {
+    border-radius: 6px !important;
 }
 
-.data-status .text-secondary {
-    color: #6c757d !important;
+/* Market Status Indicators */
+.market-open {
+    color: var(--tv-green);
 }
 
-/* Responsive symbol management */
-@media (max-width: 768px) {
-    #watched-symbols-list .badge {
-        font-size: 0.75rem;
-        padding: 0.4rem 0.6rem;
-    }
+.market-closed {
+    color: var(--tv-red);
+}
 
-    .input-group .form-control {
-        margin-bottom: 0.5rem;
-    }
+.market-pre {
+    color: var(--tv-orange);
+}
 
-    .input-group {
-        flex-direction: column;
-    }
+/* Data Quality Indicators */
+.data-fresh {
+    color: var(--tv-green);
+}
 
-    .input-group .btn {
-        border-radius: var(--border-radius);
-    }
+.data-stale {
+    color: var(--tv-orange);
+}
 
-    #add-symbol-btn {
-        margin-top: 0.5rem;
-    }
-
-    .data-status i {
-        font-size: 0.75rem;
-    }
+.data-error {
+    color: var(--tv-red);
 }
