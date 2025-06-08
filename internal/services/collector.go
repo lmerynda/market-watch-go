@@ -150,14 +150,19 @@ func (cs *CollectorService) collectData() {
 	errorCount := 0
 
 	for _, symbol := range symbols {
+		log.Printf("Starting data collection for symbol: %s", symbol)
 		count, err := cs.collectSymbolData(symbol)
 		if err != nil {
-			log.Printf("Failed to collect data for %s: %v", symbol, err)
+			log.Printf("ERROR: Failed to collect data for %s: %v", symbol, err)
 			errorCount++
 			continue
 		}
 		collectedCount += count
-		log.Printf("Collected %d data points for %s", count, symbol)
+		if count > 0 {
+			log.Printf("Successfully collected %d data points for %s", count, symbol)
+		} else {
+			log.Printf("WARNING: No new data points collected for %s (may already be up to date)", symbol)
+		}
 
 		// Small delay between symbol requests to respect rate limits
 		time.Sleep(100 * time.Millisecond)
@@ -198,67 +203,89 @@ func (cs *CollectorService) collectSymbolData(symbol string) (int, error) {
 
 // collectVolumeData collects volume data for a single symbol
 func (cs *CollectorService) collectVolumeData(symbol string) (int, error) {
+	log.Printf("Fetching latest volume aggregates for %s (last 120 minutes)", symbol)
+
 	// Get recent data (last 2 hours to ensure we don't miss anything)
 	data, err := cs.polygon.GetLatestAggregates(symbol, 120)
 	if err != nil {
+		log.Printf("ERROR: Failed to get latest volume aggregates for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to get latest volume aggregates: %w", err)
 	}
 
+	log.Printf("Received %d raw volume data points from Polygon for %s", len(data), symbol)
+
 	if len(data) == 0 {
-		log.Printf("No new volume data available for %s", symbol)
+		log.Printf("WARNING: No volume data available from Polygon API for %s", symbol)
 		return 0, nil
 	}
 
 	// Filter out data we might already have
 	newData, err := cs.filterNewVolumeData(data)
 	if err != nil {
+		log.Printf("ERROR: Failed to filter new volume data for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to filter new volume data: %w", err)
 	}
 
+	log.Printf("After filtering, %d new volume data points remain for %s", len(newData), symbol)
+
 	if len(newData) == 0 {
-		log.Printf("No new volume data points for %s", symbol)
+		log.Printf("No new volume data points to insert for %s (all data already exists)", symbol)
 		return 0, nil
 	}
 
 	// Insert new data into database
+	log.Printf("Inserting %d new volume data points for %s into database", len(newData), symbol)
 	err = cs.db.InsertVolumeDataBatch(newData)
 	if err != nil {
+		log.Printf("ERROR: Failed to insert volume data batch for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to insert volume data batch: %w", err)
 	}
 
+	log.Printf("Successfully inserted %d volume data points for %s", len(newData), symbol)
 	return len(newData), nil
 }
 
 // collectPriceData collects price data for a single symbol
 func (cs *CollectorService) collectPriceData(symbol string) (int, error) {
+	log.Printf("Fetching latest price aggregates for %s (last 120 minutes)", symbol)
+
 	// Get recent data (last 2 hours to ensure we don't miss anything)
 	data, err := cs.polygon.GetLatestPriceAggregates(symbol, 120)
 	if err != nil {
+		log.Printf("ERROR: Failed to get latest price aggregates for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to get latest price aggregates: %w", err)
 	}
 
+	log.Printf("Received %d raw price data points from Polygon for %s", len(data), symbol)
+
 	if len(data) == 0 {
-		log.Printf("No new price data available for %s", symbol)
+		log.Printf("WARNING: No price data available from Polygon API for %s", symbol)
 		return 0, nil
 	}
 
 	// Filter out data we might already have
 	newData, err := cs.filterNewPriceData(data)
 	if err != nil {
+		log.Printf("ERROR: Failed to filter new price data for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to filter new price data: %w", err)
 	}
 
+	log.Printf("After filtering, %d new price data points remain for %s", len(newData), symbol)
+
 	if len(newData) == 0 {
-		log.Printf("No new price data points for %s", symbol)
+		log.Printf("No new price data points to insert for %s (all data already exists)", symbol)
 		return 0, nil
 	}
 
 	// Insert new data into database
+	log.Printf("Inserting %d new price data points for %s into database", len(newData), symbol)
 	err = cs.db.InsertPriceDataBatch(newData)
 	if err != nil {
+		log.Printf("ERROR: Failed to insert price data batch for %s: %v", symbol, err)
 		return 0, fmt.Errorf("failed to insert price data batch: %w", err)
 	}
 
+	log.Printf("Successfully inserted %d price data points for %s", len(newData), symbol)
 	return len(newData), nil
 }
 

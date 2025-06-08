@@ -54,18 +54,44 @@ class MarketWatchDashboard {
 
     async loadSymbols() {
         try {
-            const response = await fetch('/api/collection/status');
-            const data = await response.json();
-            
-            if (response.ok && data.active_symbols) {
-                this.symbols = data.active_symbols;
-                console.log('Loaded symbols:', this.symbols);
+            const response = await fetch('/api/symbols');
+            if (response.ok) {
+                const data = await response.json();
+                if (data && Array.isArray(data) && data.length > 0) {
+                    this.symbols = data.map(symbol => symbol.symbol || symbol);
+                    console.log('Loaded symbols from database:', this.symbols);
+                } else {
+                    console.warn('No symbols returned from API - database may be empty');
+                    this.symbols = [];
+                    this.showNoSymbolsMessage();
+                }
             } else {
-                this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
+                console.error('Failed to load symbols from API:', response.status);
+                this.symbols = [];
+                this.showNoSymbolsMessage();
             }
         } catch (error) {
             console.error('Error loading symbols:', error);
-            this.symbols = ['PLTR', 'TSLA', 'BBAI', 'MSFT', 'NPWR'];
+            this.symbols = [];
+            this.showNoSymbolsMessage();
+        }
+    }
+
+    showNoSymbolsMessage() {
+        const chartsGrid = document.getElementById('charts-grid');
+        if (chartsGrid) {
+            chartsGrid.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <h5><i class="bi bi-exclamation-triangle me-2"></i>No Symbols Configured</h5>
+                        <p>No symbols are currently being watched. Please add symbols using:</p>
+                        <ul>
+                            <li>The API endpoint: <code>POST /api/symbols</code></li>
+                            <li>Or add symbols to the <code>configs/config.yaml</code> file and restart</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
         }
     }
 

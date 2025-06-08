@@ -31,13 +31,16 @@ func (dh *DashboardHandler) Index(c *gin.Context) {
 	symbols, err := dh.db.GetWatchedSymbols()
 	if err != nil {
 		log.Printf("Failed to load watched symbols for dashboard: %v", err)
-		// Fallback to default symbols if database fails
-		symbols = []string{"PLTR", "TSLA", "BBAI", "MSFT", "NPWR"}
+		c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+			"title": "Database Error",
+			"error": "Failed to load watched symbols. Please check the database connection.",
+		})
+		return
 	}
 
-	// If no symbols are being watched, use defaults
+	// If no symbols are being watched, show a message to add symbols
 	if len(symbols) == 0 {
-		symbols = []string{"PLTR", "TSLA", "BBAI", "MSFT", "NPWR"}
+		log.Printf("No symbols are being watched. Please add symbols using the API or command-line tool.")
 	}
 
 	c.HTML(http.StatusOK, "index.html", gin.H{

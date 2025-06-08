@@ -74,18 +74,64 @@ func (tas *TechnicalAnalysisService) GetIndicators(symbol string) (*models.Techn
 	tas.mutex.RUnlock()
 
 	// Get price data
-	priceData, err := tas.db.GetPriceData(&models.PriceDataFilter{
+	filter := &models.PriceDataFilter{
 		Symbol: symbol,
 		From:   time.Now().AddDate(0, 0, -60), // Last 60 days for better indicators
 		To:     time.Now(),
 		Limit:  10000,
-	})
+	}
+
+	log.Printf("Fetching price data for symbol %s from %s to %s",
+		symbol, filter.From.Format("2006-01-02"), filter.To.Format("2006-01-02"))
+
+	priceData, err := tas.db.GetPriceData(filter)
 	if err != nil {
+		log.Printf("Error fetching price data for symbol %s: %v", symbol, err)
 		return nil, fmt.Errorf("failed to get price data: %w", err)
 	}
 
+	log.Printf("Retrieved %d price data points for symbol %s", len(priceData), symbol)
+
 	if len(priceData) == 0 {
-		return nil, fmt.Errorf("no price data available for symbol %s", symbol)
+		log.Printf("WARNING: No price data found for symbol %s in date range %s to %s - this may indicate missing data collection",
+			symbol, filter.From.Format("2006-01-02"), filter.To.Format("2006-01-02"))
+
+		// Check if symbol exists in watched symbols
+		watchedSymbols, err := tas.db.GetWatchedSymbols()
+		if err != nil {
+			log.Printf("ERROR: Failed to get watched symbols: %v", err)
+		} else {
+			symbolWatched := false
+			for _, ws := range watchedSymbols {
+				if ws == symbol {
+					symbolWatched = true
+					break
+				}
+			}
+			if symbolWatched {
+				log.Printf("Symbol %s IS in watched symbols list - data collection issue", symbol)
+			} else {
+				log.Printf("Symbol %s is NOT in watched symbols list - not being collected", symbol)
+			}
+		}
+
+		// Check latest data for this symbol
+		latestPrice, err := tas.db.GetLatestPriceData(symbol)
+		if err != nil {
+			log.Printf("ERROR: Failed to get latest price data for %s: %v", symbol, err)
+		} else if latestPrice != nil {
+			log.Printf("Latest price data for %s: timestamp=%s, close=%.2f",
+				symbol, latestPrice.Timestamp.Format("2006-01-02 15:04:05"), latestPrice.Close)
+		} else {
+			log.Printf("No price data found in database for %s at all", symbol)
+		}
+
+		return &models.TechnicalIndicators{
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+			CreatedAt: time.Now(),
+			// All indicator values will be zero/empty
+		}, nil
 	}
 
 	// Calculate indicators

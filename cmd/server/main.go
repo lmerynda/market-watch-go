@@ -100,11 +100,19 @@ func main() {
 		log.Printf("Warning: Failed to trigger initial collection: %v", err)
 	}
 
+	// Initialize services
+	taService := services.NewTechnicalAnalysisService(db, nil)
+	srService := services.NewSupportResistanceService(db, taService)
+	setupService := services.NewSetupDetectionService(db, taService, srService)
+
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService)
 	priceHandler := handlers.NewPriceHandler(db, collectorService, polygonService)
 	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
 	debugHandler := handlers.NewDebugHandler(db)
+	taHandler := handlers.NewTechnicalAnalysisHandler(db, taService)
+	setupHandler := handlers.NewSetupHandler(db, setupService)
+	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 
 	// Set up Gin router
 	if cfg.Logging.Level != "debug" {
@@ -196,6 +204,56 @@ func main() {
 		debug := api.Group("/debug")
 		{
 			debug.GET("/count", debugHandler.GetDataCount)
+		}
+
+		// Technical Analysis endpoints
+		indicators := api.Group("/indicators")
+		{
+			indicators.GET("/:symbol", taHandler.GetIndicators)
+			indicators.GET("/:symbol/summary", taHandler.GetIndicatorsSummary)
+			indicators.GET("/:symbol/historical", taHandler.GetHistoricalIndicators)
+			indicators.POST("/:symbol/update", taHandler.UpdateIndicators)
+			indicators.GET("/:symbol/alerts", taHandler.CheckAlerts)
+			indicators.GET("/:symbol/alerts/active", taHandler.GetActiveAlerts)
+			indicators.POST("/:symbol/cache/invalidate", taHandler.InvalidateSymbolCache)
+		}
+
+		technicalAnalysis := api.Group("/technical-analysis")
+		{
+			technicalAnalysis.GET("/indicators", taHandler.GetMultipleIndicators)
+			technicalAnalysis.GET("/stats", taHandler.GetStats)
+			technicalAnalysis.GET("/cache/status", taHandler.GetCacheStatus)
+			technicalAnalysis.POST("/cache/clear", taHandler.ClearCache)
+		}
+
+		// Setup Detection endpoints
+		setups := api.Group("/setups")
+		{
+			setups.GET("/high-quality", setupHandler.GetHighQualitySetups)
+			setups.GET("/", setupHandler.GetMultipleSetups)
+			setups.POST("/expire", setupHandler.ExpireOldSetups)
+			setups.POST("/cleanup", setupHandler.CleanupOldSetups)
+			setups.GET("/stats", setupHandler.GetSetupsStats)
+			setups.GET("/:symbol", setupHandler.GetSetups)
+			setups.POST("/:symbol/detect", setupHandler.DetectSetups)
+			setups.GET("/:symbol/summary", setupHandler.GetSetupSummary)
+			setups.GET("/id/:id", setupHandler.GetSetupByID)
+			setups.PUT("/id/:id/status", setupHandler.UpdateSetupStatus)
+			setups.GET("/id/:id/checklist", setupHandler.GetSetupChecklist)
+		}
+
+		// Support/Resistance endpoints
+		supportResistance := api.Group("/support-resistance")
+		{
+			supportResistance.GET("/levels", srHandler.GetMultipleLevels)
+			supportResistance.POST("/cleanup", srHandler.CleanupOldData)
+			supportResistance.POST("/deactivate", srHandler.DeactivateOldLevels)
+			supportResistance.GET("/:symbol/levels", srHandler.GetSupportResistanceLevels)
+			supportResistance.POST("/:symbol/detect", srHandler.DetectSupportResistance)
+			supportResistance.GET("/:symbol/nearest", srHandler.GetNearestLevels)
+			supportResistance.GET("/:symbol/touches", srHandler.GetLevelTouches)
+			supportResistance.GET("/:symbol/pivots", srHandler.GetPivotPoints)
+			supportResistance.GET("/:symbol/summary", srHandler.GetLevelSummary)
 		}
 	}
 

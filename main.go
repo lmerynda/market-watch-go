@@ -26,7 +26,7 @@ func main() {
 	log.Printf("✅ Configuration loaded from configs/config.yaml")
 	log.Printf("📊 Database: %s", cfg.Database.Path)
 	log.Printf("🔗 Polygon API: %s", cfg.Polygon.BaseURL)
-	log.Printf("📈 Symbols: %v", cfg.Collection.Symbols)
+	log.Printf("📈 Config symbols: %v", cfg.Collection.Symbols)
 
 	// Initialize database
 	db, err := database.New(cfg)
@@ -34,6 +34,19 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
+
+	// Ensure config symbols are in the watched symbols table
+	if err := db.EnsureConfigSymbolsWatched(cfg.Collection.Symbols); err != nil {
+		log.Fatalf("Failed to ensure config symbols are watched: %v", err)
+	}
+
+	// Get watched symbols from database (should now include config symbols)
+	watchedSymbols, err := db.GetWatchedSymbols()
+	if err != nil {
+		log.Fatalf("Failed to get watched symbols: %v", err)
+	}
+
+	log.Printf("📈 Watched symbols from database: %v", watchedSymbols)
 
 	// Initialize Polygon service with API key from config
 	polygonService := services.NewPolygonService(cfg)
@@ -91,6 +104,9 @@ func main() {
 	// Load HTML templates
 	router.LoadHTMLGlob("web/templates/*")
 
+	// Static files
+	router.Static("/static", "./web/static")
+
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -104,6 +120,76 @@ func main() {
 	// API routes
 	api := router.Group("/api")
 	{
+		// API Documentation endpoint
+		api.GET("/docs", func(c *gin.Context) {
+			dataCount, _ := db.GetPriceDataCount()
+
+			c.JSON(http.StatusOK, gin.H{
+				"message":       "🚀 Market Watch API with Polygon.io",
+				"version":       "1.0.0",
+				"status":        "Operational",
+				"config_source": "configs/config.yaml",
+				"data_points":   dataCount,
+				"features": []string{
+					"📈 Real-time data from Polygon.io API",
+					"🎯 Technical Analysis with custom indicators",
+					"💡 Support/Resistance Detection (100-point scoring)",
+					"✅ Trading Setup Detection (20-item checklist)",
+					"⚡ Automated data collection & analysis",
+					"🖥️ Interactive TradingView-style dashboard",
+				},
+				"polygon_integration": gin.H{
+					"status":       "active",
+					"api_url":      cfg.Polygon.BaseURL,
+					"symbols":      cfg.Collection.Symbols,
+					"interval":     cfg.Collection.Interval.String(),
+					"market_hours": cfg.Collection.MarketHours,
+				},
+				"database": gin.H{
+					"path":            cfg.Database.Path,
+					"max_connections": cfg.Database.MaxOpenConns,
+				},
+				"ui": gin.H{
+					"dashboard": "/",
+					"features": []string{
+						"Real-time TradingView-style charts with D3.js",
+						"Professional dark theme matching TradingView",
+						"Technical indicators visualization",
+						"Trading setups with quality scores",
+						"Support/resistance level analysis",
+						"Data collection monitoring",
+						"Interactive candlestick charts",
+						"Volume analysis with color coding",
+					},
+				},
+				"endpoints": gin.H{
+					"health":              "/health",
+					"dashboard":           "/",
+					"api_docs":            "/api/docs",
+					"indicators":          "/api/indicators/:symbol",
+					"support_resistance":  "/api/support-resistance/:symbol/levels",
+					"setups":              "/api/setups/:symbol",
+					"high_quality_setups": "/api/setups/high-quality",
+					"setup_detection":     "/api/setups/:symbol/detect",
+					"price_chart":         "/api/price/:symbol/chart",
+					"collection_status":   "/api/collection/status",
+					"force_collection":    "POST /api/collection/force",
+				},
+				"examples": gin.H{
+					"view_dashboard":    "GET /",
+					"api_documentation": "GET /api/docs",
+					"get_indicators":    "GET /api/indicators/PLTR",
+					"detect_setups":     "POST /api/setups/PLTR/detect",
+					"get_high_quality":  "GET /api/setups/high-quality",
+					"get_sr_levels":     "GET /api/support-resistance/PLTR/levels",
+					"get_price_chart":   "GET /api/price/PLTR/chart?range=1W",
+					"collection_status": "GET /api/collection/status",
+					"force_collection":  "POST /api/collection/force",
+					"historical_data":   "POST /api/collection/historical/7",
+				},
+			})
+		})
+
 		// Technical Analysis routes
 		api.GET("/indicators/:symbol", taHandler.GetIndicators)
 		api.GET("/indicators", taHandler.GetMultipleIndicators)
@@ -135,6 +221,7 @@ func main() {
 		// Data collection routes
 		api.GET("/collection/status", func(c *gin.Context) {
 			stats := collectorService.GetStats()
+			activeSymbols, _ := db.GetWatchedSymbols() // Get actual symbols from database
 			c.JSON(http.StatusOK, gin.H{
 				"status":              "running",
 				"last_run":            stats.LastRun,
@@ -145,7 +232,7 @@ func main() {
 				"total_collected":     stats.TotalCollected,
 				"is_running":          stats.IsRunning,
 				"last_error":          stats.LastError,
-				"active_symbols":      cfg.Collection.Symbols,
+				"active_symbols":      activeSymbols,
 				"collection_interval": cfg.Collection.Interval.String(),
 			})
 		})
@@ -183,6 +270,12 @@ func main() {
 				"message": fmt.Sprintf("Historical data collection started for %d days", days),
 			})
 		})
+
+		// Symbol management endpoints
+		volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService)
+		api.GET("/symbols", volumeHandler.GetWatchedSymbols)
+		api.POST("/symbols", volumeHandler.AddWatchedSymbol)
+		api.DELETE("/symbols/:symbol", volumeHandler.RemoveWatchedSymbol)
 
 		// Price chart endpoint with real data from database
 		api.GET("/price/:symbol/chart", func(c *gin.Context) {
@@ -230,80 +323,13 @@ func main() {
 		})
 	}
 
-	// Dashboard route - serve the HTML template
+	// Main route - serve the TradingView-style dashboard
+	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
+	router.GET("/", dashboardHandler.Index)
+
+	// Legacy dashboard route (redirect to main)
 	router.GET("/dashboard", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "dashboard.html", gin.H{
-			"title":   "Market Watch Dashboard",
-			"symbols": cfg.Collection.Symbols,
-		})
-	})
-
-	// Static files
-	router.Static("/static", "./web/static")
-
-	// Frontend route with config information
-	router.GET("/", func(c *gin.Context) {
-		dataCount, _ := db.GetPriceDataCount()
-
-		c.JSON(http.StatusOK, gin.H{
-			"message":       "🚀 Market Watch API with Polygon.io",
-			"version":       "1.0.0",
-			"status":        "Operational",
-			"config_source": "configs/config.yaml",
-			"data_points":   dataCount,
-			"features": []string{
-				"📈 Real-time data from Polygon.io API",
-				"🎯 Technical Analysis with custom indicators",
-				"💡 Support/Resistance Detection (100-point scoring)",
-				"✅ Trading Setup Detection (20-item checklist)",
-				"⚡ Automated data collection & analysis",
-				"🖥️ Interactive web dashboard",
-			},
-			"polygon_integration": gin.H{
-				"status":       "active",
-				"api_url":      cfg.Polygon.BaseURL,
-				"symbols":      cfg.Collection.Symbols,
-				"interval":     cfg.Collection.Interval.String(),
-				"market_hours": cfg.Collection.MarketHours,
-			},
-			"database": gin.H{
-				"path":            cfg.Database.Path,
-				"max_connections": cfg.Database.MaxOpenConns,
-			},
-			"ui": gin.H{
-				"dashboard": "/dashboard",
-				"features": []string{
-					"Real-time price charts with D3.js",
-					"Technical indicators visualization",
-					"Trading setups with quality scores",
-					"Support/resistance level analysis",
-					"Data collection monitoring",
-				},
-			},
-			"endpoints": gin.H{
-				"health":              "/health",
-				"dashboard":           "/dashboard",
-				"indicators":          "/api/indicators/:symbol",
-				"support_resistance":  "/api/support-resistance/:symbol/levels",
-				"setups":              "/api/setups/:symbol",
-				"high_quality_setups": "/api/setups/high-quality",
-				"setup_detection":     "/api/setups/:symbol/detect",
-				"price_chart":         "/api/price/:symbol/chart",
-				"collection_status":   "/api/collection/status",
-				"force_collection":    "POST /api/collection/force",
-			},
-			"examples": gin.H{
-				"view_dashboard":    "GET /dashboard",
-				"get_indicators":    "GET /api/indicators/PLTR",
-				"detect_setups":     "POST /api/setups/PLTR/detect",
-				"get_high_quality":  "GET /api/setups/high-quality",
-				"get_sr_levels":     "GET /api/support-resistance/PLTR/levels",
-				"get_price_chart":   "GET /api/price/PLTR/chart?range=1W",
-				"collection_status": "GET /api/collection/status",
-				"force_collection":  "POST /api/collection/force",
-				"historical_data":   "POST /api/collection/historical/7",
-			},
-		})
+		c.Redirect(http.StatusMovedPermanently, "/")
 	})
 
 	// Start server
@@ -313,11 +339,11 @@ func main() {
 	log.Printf("📁 Config: configs/config.yaml")
 	log.Printf("🔗 Polygon.io: %s", cfg.Polygon.BaseURL)
 	log.Printf("📊 Database: %s", cfg.Database.Path)
-	log.Printf("📈 Tracked symbols: %v", cfg.Collection.Symbols)
+	log.Printf("📈 Tracked symbols: %v", watchedSymbols)
 	log.Printf("⏰ Collection interval: %v", cfg.Collection.Interval)
-	log.Printf("🎯 API available at: http://localhost:%s", port)
-	log.Printf("🖥️ DASHBOARD available at: http://localhost:%s/dashboard", port)
-	log.Printf("✨ Features: Real-time data + Technical Analysis + S/R Detection + Setup Intelligence + Web UI")
+	log.Printf("🎯 DASHBOARD available at: http://localhost:%s", port)
+	log.Printf("📚 API Documentation: http://localhost:%s/api/docs", port)
+	log.Printf("✨ Features: TradingView-style UI + Real-time data + Technical Analysis + S/R Detection + Setup Intelligence")
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

@@ -184,47 +184,28 @@ func (db *DB) initSchema() error {
 		return fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	// Insert default watched symbols if none exist
-	if err := db.insertDefaultSymbols(); err != nil {
-		log.Printf("Warning: failed to insert default symbols: %v", err)
-	}
-
 	return nil
 }
 
-// insertDefaultSymbols inserts default symbols if the table is empty
-func (db *DB) insertDefaultSymbols() error {
-	// Check if any symbols exist
-	var count int
-	err := db.conn.QueryRow("SELECT COUNT(*) FROM watched_symbols").Scan(&count)
-	if err != nil {
-		return err
+// EnsureConfigSymbolsWatched ensures that all symbols from config are in the watched_symbols table
+func (db *DB) EnsureConfigSymbolsWatched(configSymbols []string) error {
+	if len(configSymbols) == 0 {
+		log.Printf("No symbols in config to watch")
+		return nil
 	}
 
-	// If no symbols exist, insert defaults
-	if count == 0 {
-		defaultSymbols := []struct {
-			symbol string
-			name   string
-		}{
-			{"PLTR", "Palantir Technologies Inc."},
-			{"TSLA", "Tesla, Inc."},
-			{"BBAI", "BigBear.ai Holdings, Inc."},
-			{"MSFT", "Microsoft Corporation"},
-			{"NPWR", "NET Power Inc."},
-		}
+	log.Printf("Ensuring config symbols are watched: %v", configSymbols)
 
-		for _, sym := range defaultSymbols {
-			_, err := db.conn.Exec(
-				"INSERT INTO watched_symbols (symbol, name) VALUES (?, ?)",
-				sym.symbol, sym.name,
-			)
-			if err != nil {
-				log.Printf("Failed to insert default symbol %s: %v", sym.symbol, err)
-			}
+	for _, symbol := range configSymbols {
+		// Use AddWatchedSymbol which handles INSERT OR REPLACE
+		err := db.AddWatchedSymbol(symbol, "") // Empty name, can be updated later
+		if err != nil {
+			log.Printf("Failed to ensure symbol %s is watched: %v", symbol, err)
+			return err
 		}
 	}
 
+	log.Printf("Successfully ensured %d config symbols are watched", len(configSymbols))
 	return nil
 }
 
