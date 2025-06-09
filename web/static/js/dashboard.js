@@ -8,6 +8,11 @@ class MarketWatchDashboard {
         this.updateInterval = 30000; // 30 seconds
         this.isLoading = false;
         this.loadingController = null;
+        this.retryCount = {
+            technicalAnalysis: 0,
+            tradingSetups: 0,
+            supportResistance: 0
+        };
         
         // TradingView color palette
         this.colors = {
@@ -39,55 +44,118 @@ class MarketWatchDashboard {
     }
 
     async init() {
+        console.log('Dashboard init() started');
+        
+        console.log('Loading symbols...');
         await this.loadSymbols();
+        console.log('Symbols loaded:', this.symbols);
+        
+        console.log('Setting up event listeners...');
         this.setupEventListeners();
+        
+        console.log('Creating charts container...');
         this.createChartsContainer();
+        
+        console.log('Initializing charts...');
         this.initializeCharts();
         
         await new Promise(resolve => setTimeout(resolve, 100));
         
         this.syncTimeRangeFromHTML();
         console.log('Dashboard initialized with time range:', this.currentTimeRange);
+        
+        console.log('Loading dashboard data...');
         this.loadDashboardData();
+        
+        console.log('Starting auto refresh...');
         this.startAutoRefresh();
+        
+        console.log('Dashboard initialization complete');
     }
 
     async loadSymbols() {
         try {
-            const response = await fetch('/api/symbols');
+            // First, quick health check to see if backend is running
+            console.log('🔍 Testing backend connectivity...');
+            try {
+                const healthResponse = await fetch('/health', {
+                    signal: AbortSignal.timeout(3000)
+                });
+                console.log('✅ Backend health check:', healthResponse.status);
+            } catch (healthError) {
+                console.error('❌ Backend appears to be down:', healthError.message);
+                this.symbols = [];
+                this.showNoSymbolsMessage();
+                this.loadEmptyDashboardSections();
+                return;
+            }
+            
+            console.log('📋 Fetching symbols from /api/symbols...');
+            
+            // Add timeout to detect hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+                console.error('❌ /api/symbols request timed out after 10 seconds');
+            }, 10000);
+            
+            const response = await fetch('/api/symbols', {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            console.log('Symbols API response status:', response.status);
+            
             if (response.ok) {
                 const data = await response.json();
-                console.log('Raw API response:', data);
+                console.log('Raw symbols API response:', data);
+                console.log('Response type:', typeof data);
+                console.log('Is array?', Array.isArray(data));
                 
                 // Handle the API response structure: {symbols: [...], count: N}
                 if (data && data.symbols && Array.isArray(data.symbols) && data.symbols.length > 0) {
                     this.symbols = data.symbols.map(symbolObj => symbolObj.symbol);
-                    console.log('Loaded symbols from database:', this.symbols);
+                    console.log('✅ Loaded symbols from database (structure):', this.symbols);
                 } else if (data && Array.isArray(data) && data.length > 0) {
                     // Fallback for direct array response
                     this.symbols = data.map(symbol => symbol.symbol || symbol);
-                    console.log('Loaded symbols from database (fallback):', this.symbols);
+                    console.log('✅ Loaded symbols from database (direct array):', this.symbols);
                 } else {
-                    console.warn('No symbols returned from API - database may be empty');
+                    console.warn('❌ No symbols returned from API - database may be empty');
+                    console.log('Data structure received:', data);
                     this.symbols = [];
                     this.showNoSymbolsMessage();
+                    // Still try to load other dashboard sections even without symbols
+                    this.loadEmptyDashboardSections();
                 }
             } else {
-                console.error('Failed to load symbols from API:', response.status);
+                console.error('❌ Failed to load symbols from API. Status:', response.status);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
                 this.symbols = [];
                 this.showNoSymbolsMessage();
+                // Still try to load other dashboard sections even without symbols
+                this.loadEmptyDashboardSections();
             }
         } catch (error) {
-            console.error('Error loading symbols:', error);
+            console.error('❌ Error loading symbols:', error);
             this.symbols = [];
             this.showNoSymbolsMessage();
+            // Still try to load other dashboard sections even without symbols
+            this.loadEmptyDashboardSections();
         }
+        
+        console.log('Final symbols array:', this.symbols);
+        console.log('Symbols count:', this.symbols.length);
     }
 
     showNoSymbolsMessage() {
+        console.log('📢 showNoSymbolsMessage() called');
         const chartsGrid = document.getElementById('charts-grid');
+        console.log('Charts grid element for no symbols message:', !!chartsGrid);
+        
         if (chartsGrid) {
-            chartsGrid.innerHTML = `
+            const noSymbolsHtml = `
                 <div class="col-12">
                     <div class="alert alert-warning">
                         <h5><i class="bi bi-exclamation-triangle me-2"></i>No Symbols Configured</h5>
@@ -99,6 +167,52 @@ class MarketWatchDashboard {
                     </div>
                 </div>
             `;
+            chartsGrid.innerHTML = noSymbolsHtml;
+            console.log('✅ No symbols message displayed in charts grid');
+            console.log('Charts grid HTML after setting message:', chartsGrid.innerHTML.substring(0, 100) + '...');
+        } else {
+            console.error('❌ Could not display no symbols message - charts grid not found');
+        }
+    }
+
+    loadEmptyDashboardSections() {
+        console.log('Loading empty dashboard sections...');
+        
+        // Initialize tab containers with empty states
+        setTimeout(() => {
+            this.initializeEmptyTechnicalAnalysis();
+            this.initializeEmptyTradingSetups();
+            this.initializeEmptySupportResistance();
+        }, 100);
+    }
+
+    initializeEmptyTechnicalAnalysis() {
+        const container = document.getElementById('technical-indicators');
+        if (container) {
+            container.innerHTML = '<div class="text-center text-tv-muted">No symbols configured for technical analysis</div>';
+            console.log('Technical analysis container initialized with empty state');
+        } else {
+            console.warn('Technical indicators container still not found');
+        }
+    }
+
+    initializeEmptyTradingSetups() {
+        const container = document.getElementById('trading-setups');
+        if (container) {
+            container.innerHTML = '<div class="text-center text-tv-muted">No symbols configured for trading setups</div>';
+            console.log('Trading setups container initialized with empty state');
+        } else {
+            console.warn('Trading setups container still not found');
+        }
+    }
+
+    initializeEmptySupportResistance() {
+        const container = document.getElementById('support-resistance');
+        if (container) {
+            container.innerHTML = '<div class="text-center text-tv-muted">No symbols configured for support/resistance analysis</div>';
+            console.log('Support/resistance container initialized with empty state');
+        } else {
+            console.warn('Support/resistance container still not found');
         }
     }
 
@@ -142,13 +256,33 @@ class MarketWatchDashboard {
     }
 
     createChartsContainer() {
+        console.log('📊 createChartsContainer() called');
         const chartsGrid = document.getElementById('charts-grid');
-        if (!chartsGrid) return;
+        console.log('Charts grid element found:', !!chartsGrid);
         
+        if (!chartsGrid) {
+            console.error('❌ charts-grid element not found!');
+            return;
+        }
+        
+        console.log('📋 Creating chart containers for symbols:', this.symbols);
+        console.log('📊 Symbols count:', this.symbols.length);
+        
+        // Clear existing content first
         chartsGrid.innerHTML = '';
+        console.log('🗑️ Cleared existing chart grid content');
+        
+        if (this.symbols.length === 0) {
+            console.warn('⚠️ No symbols available to create charts for');
+            console.log('Showing no symbols message...');
+            return;
+        }
+        
+        console.log('🔨 Building chart containers...');
         
         // Create chart containers for each symbol
-        this.symbols.forEach(symbol => {
+        this.symbols.forEach((symbol, index) => {
+            console.log(`📈 Creating chart container ${index + 1}/${this.symbols.length} for symbol: ${symbol}`);
             const chartContainer = document.createElement('div');
             chartContainer.className = 'col-lg-6 col-xl-4 mb-4';
             chartContainer.innerHTML = `
@@ -181,7 +315,11 @@ class MarketWatchDashboard {
                 </div>
             `;
             chartsGrid.appendChild(chartContainer);
+            console.log(`✅ Added chart container for ${symbol} to DOM`);
         });
+        
+        console.log(`🎉 Finished creating ${this.symbols.length} chart containers`);
+        console.log('Final charts grid HTML length:', chartsGrid.innerHTML.length);
     }
 
     initializeCharts() {
@@ -663,16 +801,44 @@ class MarketWatchDashboard {
     async loadTechnicalAnalysis() {
         try {
             const container = document.getElementById('technical-indicators');
+            if (!container) {
+                if (this.retryCount.technicalAnalysis < 3) {
+                    this.retryCount.technicalAnalysis++;
+                    console.warn(`Technical indicators container not found, retrying in 1 second... (${this.retryCount.technicalAnalysis}/3)`);
+                    setTimeout(() => this.loadTechnicalAnalysis(), 1000);
+                    return;
+                } else {
+                    console.error('Technical indicators container not found after 3 retries, giving up');
+                    return;
+                }
+            }
+            
+            // Reset retry count on success
+            this.retryCount.technicalAnalysis = 0;
             container.innerHTML = '';
             
+            if (this.symbols.length === 0) {
+                container.innerHTML = '<div class="text-center text-tv-muted">No symbols configured for technical analysis</div>';
+                console.log('Technical analysis: No symbols available');
+                return;
+            }
+            
+            console.log('Loading technical analysis for symbols:', this.symbols);
+            
             for (const symbol of this.symbols) {
+                console.log(`Fetching technical indicators for ${symbol}`);
                 const response = await fetch(`/api/indicators/${symbol}`, {
                     signal: this.loadingController?.signal
                 });
                 
+                console.log(`Technical indicators response for ${symbol}:`, response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
+                    console.log(`Technical indicators data for ${symbol}:`, data);
                     this.displayTechnicalIndicators(container, symbol, data);
+                } else {
+                    console.warn(`Failed to load technical indicators for ${symbol}: ${response.status}`);
                 }
             }
         } catch (error) {
@@ -684,15 +850,37 @@ class MarketWatchDashboard {
     async loadTradingSetups() {
         try {
             const container = document.getElementById('trading-setups');
+            if (!container) {
+                if (this.retryCount.tradingSetups < 3) {
+                    this.retryCount.tradingSetups++;
+                    console.warn(`Trading setups container not found, retrying in 1 second... (${this.retryCount.tradingSetups}/3)`);
+                    setTimeout(() => this.loadTradingSetups(), 1000);
+                    return;
+                } else {
+                    console.error('Trading setups container not found after 3 retries, giving up');
+                    return;
+                }
+            }
+            
+            // Reset retry count on success
+            this.retryCount.tradingSetups = 0;
             container.innerHTML = '';
+            
+            console.log('Loading trading setups...');
             
             const response = await fetch('/api/setups/high-quality', {
                 signal: this.loadingController?.signal
             });
             
+            console.log('Trading setups response:', response.status);
+            
             if (response.ok) {
                 const data = await response.json();
+                console.log('Trading setups data:', data);
                 this.displayTradingSetups(container, data);
+            } else {
+                console.warn(`Failed to load trading setups: ${response.status}`);
+                container.innerHTML = '<div class="text-center text-tv-muted">Failed to load trading setups</div>';
             }
         } catch (error) {
             if (error.name === 'AbortError') throw error;
@@ -703,16 +891,44 @@ class MarketWatchDashboard {
     async loadSupportResistance() {
         try {
             const container = document.getElementById('support-resistance');
+            if (!container) {
+                if (this.retryCount.supportResistance < 3) {
+                    this.retryCount.supportResistance++;
+                    console.warn(`Support/resistance container not found, retrying in 1 second... (${this.retryCount.supportResistance}/3)`);
+                    setTimeout(() => this.loadSupportResistance(), 1000);
+                    return;
+                } else {
+                    console.error('Support/resistance container not found after 3 retries, giving up');
+                    return;
+                }
+            }
+            
+            // Reset retry count on success
+            this.retryCount.supportResistance = 0;
             container.innerHTML = '';
             
+            if (this.symbols.length === 0) {
+                container.innerHTML = '<div class="text-center text-tv-muted">No symbols configured for support/resistance analysis</div>';
+                console.log('Support/resistance: No symbols available');
+                return;
+            }
+            
+            console.log('Loading support/resistance for symbols:', this.symbols);
+            
             for (const symbol of this.symbols) {
+                console.log(`Fetching support/resistance for ${symbol}`);
                 const response = await fetch(`/api/support-resistance/${symbol}/levels`, {
                     signal: this.loadingController?.signal
                 });
                 
+                console.log(`Support/resistance response for ${symbol}:`, response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
+                    console.log(`Support/resistance data for ${symbol}:`, data);
                     this.displaySupportResistance(container, symbol, data);
+                } else {
+                    console.warn(`Failed to load support/resistance for ${symbol}: ${response.status}`);
                 }
             }
         } catch (error) {
@@ -821,26 +1037,54 @@ class MarketWatchDashboard {
     }
 
     updateCollectionStatus(status) {
-        document.getElementById('successful-runs').textContent = status.successful_runs || 0;
-        document.getElementById('failed-runs').textContent = status.failed_runs || 0;
-        document.getElementById('collected-today').textContent = status.collected_today || 0;
-        
+        const successfulRunsEl = document.getElementById('successful-runs');
+        const failedRunsEl = document.getElementById('failed-runs');
+        const collectedTodayEl = document.getElementById('collected-today');
         const nextRunEl = document.getElementById('next-run');
-        if (status.next_run) {
-            const nextRun = new Date(status.next_run);
-            nextRunEl.textContent = nextRun.toLocaleTimeString();
+        const runningEl = document.getElementById('collection-running');
+        const statusEl = document.getElementById('collection-status');
+        
+        if (successfulRunsEl) {
+            successfulRunsEl.textContent = status.successful_runs || 0;
+        } else {
+            console.warn('successful-runs element not found');
         }
         
-        const runningEl = document.getElementById('collection-running');
-        runningEl.textContent = status.is_running ? 'Running' : 'Idle';
-        
-        const statusEl = document.getElementById('collection-status');
-        if (status.last_error) {
-            statusEl.className = 'alert alert-warning';
-            statusEl.innerHTML = `Status: Error - ${status.last_error}`;
+        if (failedRunsEl) {
+            failedRunsEl.textContent = status.failed_runs || 0;
         } else {
-            statusEl.className = 'alert alert-success';
-            statusEl.innerHTML = 'Status: Running normally';
+            console.warn('failed-runs element not found');
+        }
+        
+        if (collectedTodayEl) {
+            collectedTodayEl.textContent = status.collected_today || 0;
+        } else {
+            console.warn('collected-today element not found');
+        }
+        
+        if (nextRunEl && status.next_run) {
+            const nextRun = new Date(status.next_run);
+            nextRunEl.textContent = nextRun.toLocaleTimeString();
+        } else if (!nextRunEl) {
+            console.warn('next-run element not found');
+        }
+        
+        if (runningEl) {
+            runningEl.textContent = status.is_running ? 'Running' : 'Idle';
+        } else {
+            console.warn('collection-running element not found');
+        }
+        
+        if (statusEl) {
+            if (status.last_error) {
+                statusEl.className = 'alert alert-warning';
+                statusEl.innerHTML = `Status: Error - ${status.last_error}`;
+            } else {
+                statusEl.className = 'alert alert-success';
+                statusEl.innerHTML = 'Status: Running normally';
+            }
+        } else {
+            console.warn('collection-status element not found');
         }
     }
 
@@ -865,7 +1109,249 @@ class MarketWatchDashboard {
 
     toggleSymbolManagement() {
         const panel = document.getElementById('symbol-management-panel');
+        const isCurrentlyHidden = panel.classList.contains('d-none');
+        
         panel.classList.toggle('d-none');
+        
+        // If we're opening the panel (was hidden, now showing), load symbols
+        if (isCurrentlyHidden) {
+            console.log('📋 Symbol management panel opened - loading current symbols...');
+            this.loadSymbolsForManagement();
+        }
+    }
+
+    async loadSymbolsForManagement() {
+        try {
+            console.log('🔍 Fetching symbols for management panel...');
+            const response = await fetch('/api/symbols');
+            console.log('📋 Management symbols API response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('📋 Management symbols data:', data);
+                this.displaySymbolsInManagementPanel(data);
+            } else {
+                console.error('❌ Failed to load symbols for management:', response.status);
+                this.showSymbolManagementError();
+            }
+        } catch (error) {
+            console.error('❌ Error loading symbols for management:', error);
+            this.showSymbolManagementError();
+        }
+    }
+    
+    displaySymbolsInManagementPanel(data) {
+        const cardBody = document.querySelector('#symbol-management-panel .card-body');
+        if (!cardBody) {
+            console.error('❌ Symbol management card body not found');
+            return;
+        }
+        
+        const symbols = data.symbols || [];
+        console.log(`📊 Displaying ${symbols.length} symbols in management panel`);
+        
+        let html = `
+            <!-- Add Symbol Form -->
+            <div class="mb-4">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="new-symbol-input" placeholder="Enter symbol (e.g., AAPL)" maxlength="10">
+                    <button class="btn btn-primary" type="button" id="add-symbol-btn">
+                        <i class="bi bi-plus-circle"></i> Add Symbol
+                    </button>
+                </div>
+                <small class="text-tv-muted">Enter a stock symbol to start tracking (letters only, max 10 characters)</small>
+            </div>
+            
+            <!-- Current Symbols Info -->
+            <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                Currently tracking <strong>${symbols.length}</strong> symbol${symbols.length !== 1 ? 's' : ''}
+            </div>
+        `;
+        
+        if (symbols.length > 0) {
+            html += `
+                <div class="row" id="symbols-list">
+                    ${symbols.map(symbolObj => `
+                        <div class="col-md-6 col-lg-4 mb-2" data-symbol="${symbolObj.symbol}">
+                            <div class="d-flex justify-content-between align-items-center p-2 border rounded bg-tv-surface-light">
+                                <div>
+                                    <strong class="text-tv-primary">${symbolObj.symbol}</strong>
+                                    <br>
+                                    <small class="text-tv-muted">ID: ${symbolObj.id}</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="mb-1">
+                                        <small class="text-tv-secondary d-block">
+                                            Added: ${new Date(symbolObj.added_at).toLocaleDateString()}
+                                        </small>
+                                        <span class="badge ${symbolObj.is_active ? 'bg-success' : 'bg-secondary'}">
+                                            ${symbolObj.is_active ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </div>
+                                    <button class="btn btn-outline-danger btn-sm remove-symbol-btn" data-symbol="${symbolObj.symbol}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    No symbols are currently being tracked. Add your first symbol above!
+                </div>
+            `;
+        }
+        
+        cardBody.innerHTML = html;
+        
+        // Add event listeners for the new buttons
+        this.setupSymbolManagementEventListeners();
+        
+        console.log('✅ Symbol management panel updated with add/remove functionality');
+    }
+    
+    setupSymbolManagementEventListeners() {
+        // Add symbol button
+        const addBtn = document.getElementById('add-symbol-btn');
+        const newSymbolInput = document.getElementById('new-symbol-input');
+        
+        if (addBtn && newSymbolInput) {
+            addBtn.addEventListener('click', () => this.addSymbol());
+            
+            // Allow Enter key to add symbol
+            newSymbolInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.addSymbol();
+                }
+            });
+            
+            // Auto-uppercase and validate input
+            newSymbolInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+            });
+        }
+        
+        // Remove symbol buttons
+        const removeButtons = document.querySelectorAll('.remove-symbol-btn');
+        removeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const symbol = e.target.closest('button').dataset.symbol;
+                this.removeSymbol(symbol);
+            });
+        });
+    }
+    
+    async addSymbol() {
+        const input = document.getElementById('new-symbol-input');
+        const symbol = input.value.trim().toUpperCase();
+        
+        if (!symbol) {
+            this.showError('Please enter a symbol');
+            return;
+        }
+        
+        if (symbol.length > 10) {
+            this.showError('Symbol must be 10 characters or less');
+            return;
+        }
+        
+        // Check if symbol already exists
+        if (this.symbols.includes(symbol)) {
+            this.showError(`${symbol} is already being tracked`);
+            return;
+        }
+        
+        console.log(`➕ Adding symbol: ${symbol}`);
+        
+        try {
+            const response = await fetch('/api/symbols', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ symbol: symbol })
+            });
+            
+            console.log(`Add symbol response for ${symbol}:`, response.status);
+            
+            if (response.ok) {
+                this.showSuccess(`✅ ${symbol} added successfully!`);
+                input.value = ''; // Clear input
+                
+                // Reload the symbols in the management panel
+                await this.loadSymbolsForManagement();
+                
+                // Reload the main dashboard symbols and recreate charts
+                await this.loadSymbols();
+                this.createChartsContainer();
+                this.initializeCharts();
+                setTimeout(() => this.loadAllChartData(), 100);
+                
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error || `Failed to add ${symbol}`;
+                this.showError(errorMessage);
+                console.error(`Failed to add ${symbol}:`, errorData);
+            }
+        } catch (error) {
+            console.error(`Error adding symbol ${symbol}:`, error);
+            this.showError(`Failed to add ${symbol}: ${error.message}`);
+        }
+    }
+    
+    async removeSymbol(symbol) {
+        if (!confirm(`Are you sure you want to remove ${symbol} from tracking?`)) {
+            return;
+        }
+        
+        console.log(`➖ Removing symbol: ${symbol}`);
+        
+        try {
+            const response = await fetch(`/api/symbols/${symbol}`, {
+                method: 'DELETE'
+            });
+            
+            console.log(`Remove symbol response for ${symbol}:`, response.status);
+            
+            if (response.ok) {
+                this.showSuccess(`✅ ${symbol} removed successfully!`);
+                
+                // Reload the symbols in the management panel
+                await this.loadSymbolsForManagement();
+                
+                // Reload the main dashboard symbols and recreate charts
+                await this.loadSymbols();
+                this.createChartsContainer();
+                this.initializeCharts();
+                setTimeout(() => this.loadAllChartData(), 100);
+                
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.error || `Failed to remove ${symbol}`;
+                this.showError(errorMessage);
+                console.error(`Failed to remove ${symbol}:`, errorData);
+            }
+        } catch (error) {
+            console.error(`Error removing symbol ${symbol}:`, error);
+            this.showError(`Failed to remove ${symbol}: ${error.message}`);
+        }
+    }
+
+    showSymbolManagementError() {
+        const cardBody = document.querySelector('#symbol-management-panel .card-body');
+        if (cardBody) {
+            cardBody.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Failed to load symbols. Please try again.
+                </div>
+            `;
+        }
     }
 
     refreshCharts() {
@@ -960,7 +1446,43 @@ class MarketWatchDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, waiting for Bootstrap to initialize...');
+    
+    // Manual API test to verify connectivity
+    console.log('🧪 Testing /api/symbols directly...');
+    fetch('/api/symbols')
+        .then(response => {
+            console.log('🧪 Direct API test - Status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('🧪 Direct API test - Data:', data);
+            console.log('🧪 Symbols found:', data.symbols?.length || 0);
+            if (data.symbols && data.symbols.length > 0) {
+                console.log('🧪 First symbol:', data.symbols[0]);
+            }
+        })
+        .catch(error => {
+            console.error('🧪 Direct API test failed:', error);
+        });
+    
+    // Wait longer for Bootstrap tabs and other components to fully initialize
     setTimeout(() => {
+        console.log('Starting dashboard initialization...');
+        
+        // Check if essential elements exist
+        const chartsGrid = document.getElementById('charts-grid');
+        const technicalIndicators = document.getElementById('technical-indicators');
+        const tradingSetups = document.getElementById('trading-setups');
+        const supportResistance = document.getElementById('support-resistance');
+        
+        console.log('Element check:', {
+            chartsGrid: !!chartsGrid,
+            technicalIndicators: !!technicalIndicators,
+            tradingSetups: !!tradingSetups,
+            supportResistance: !!supportResistance
+        });
+        
         window.dashboard = new MarketWatchDashboard();
-    }, 100);
+    }, 500); // Increased delay to allow Bootstrap tabs to fully initialize
 });
