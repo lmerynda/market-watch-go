@@ -72,23 +72,34 @@ func main() {
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	setupHandler := handlers.NewSetupHandler(db, setupService)
 
-	// Check if we have any price data, if not collect some
+	// Check price data and collect recent historical data if needed
 	count, err := db.GetPriceDataCount()
 	if err != nil {
 		log.Printf("Failed to check price data count: %v", err)
-	} else if count == 0 {
-		log.Printf("📊 No price data found. Collecting historical data for symbols: %v", cfg.Collection.Symbols)
-
-		// Collect 7 days of historical data for all symbols
-		go func() {
-			if err := collectorService.CollectHistoricalData(7); err != nil {
-				log.Printf("❌ Failed to collect historical data: %v", err)
-			} else {
-				log.Printf("✅ Historical data collection completed")
-			}
-		}()
 	} else {
 		log.Printf("✅ Found %d price data records in database", count)
+
+		if count == 0 {
+			log.Printf("📊 No price data found. Collecting 7 days of historical data for symbols: %v", cfg.Collection.Symbols)
+			// Collect 7 days of historical data for all symbols
+			go func() {
+				if err := collectorService.CollectHistoricalData(7); err != nil {
+					log.Printf("❌ Failed to collect historical data: %v", err)
+				} else {
+					log.Printf("✅ Historical data collection completed")
+				}
+			}()
+		} else {
+			// Always collect 1 day of recent data on startup to ensure charts work
+			log.Printf("📊 Collecting recent 1-day data to ensure chart availability")
+			go func() {
+				if err := collectorService.CollectHistoricalData(1); err != nil {
+					log.Printf("❌ Failed to collect recent data: %v", err)
+				} else {
+					log.Printf("✅ Recent data collection completed")
+				}
+			}()
+		}
 	}
 
 	// Start the collector service for real-time data collection
@@ -290,6 +301,8 @@ func main() {
 				from = to.AddDate(0, 0, -1)
 			case "1W":
 				from = to.AddDate(0, 0, -7)
+			case "2W":
+				from = to.AddDate(0, 0, -14)
 			case "1M":
 				from = to.AddDate(0, -1, 0)
 			default:
