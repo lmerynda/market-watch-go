@@ -333,9 +333,11 @@ class MarketWatchDashboard {
             .domain([priceExtent[0] * 0.99, priceExtent[1] * 1.01])
             .range([height - 60, 0]); // Leave space for volume
 
+        const maxVolume = d3.max(parsedData, d => d.volume) || 1;
         const volumeScale = d3.scaleLinear()
-            .domain([0, d3.max(parsedData, d => d.volume)])
-            .range([height - 50, height - 10]);
+            .domain([0, maxVolume])
+            .range([height - 50, height - 10])
+            .clamp(true); // Prevent values outside the range
 
         // Add grid
         this.addGrid(g, width, height, xScale, yScale);
@@ -419,9 +421,18 @@ class MarketWatchDashboard {
             .enter().append("rect")
             .attr("class", "volume")
             .attr("x", d => xScale(d.timestamp) - barWidth / 2)
-            .attr("y", d => volumeScale(d.volume))
+            .attr("y", d => {
+                // Ensure volume is a valid number
+                const volume = d.volume || 0;
+                return Math.min(volumeScale(volume), volumeScale(0));
+            })
             .attr("width", barWidth)
-            .attr("height", d => volumeScale(0) - volumeScale(d.volume))
+            .attr("height", d => {
+                // Ensure volume is a valid number and height is never negative
+                const volume = d.volume || 0;
+                const height = Math.abs(volumeScale(0) - volumeScale(volume));
+                return Math.max(0, height);
+            })
             .attr("fill", d => d.close >= d.open ? this.colors.volumeUp : this.colors.volumeDown)
             .attr("opacity", 0.7);
     }
