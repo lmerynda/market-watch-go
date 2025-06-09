@@ -24,10 +24,6 @@ collection:
     - "BBAI"
     - "MSFT"
     - "NPWR"
-  market_hours:
-    start: "09:30"
-    end: "16:00"
-    timezone: "America/New_York"
 
 logging:
   level: "info"

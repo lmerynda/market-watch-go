@@ -41,15 +41,8 @@ type PolygonConfig struct {
 }
 
 type CollectionConfig struct {
-	Interval    time.Duration `yaml:"interval"`
-	Symbols     []string      `yaml:"symbols"`
-	MarketHours MarketHours   `yaml:"market_hours"`
-}
-
-type MarketHours struct {
-	Start    string `yaml:"start"`
-	End      string `yaml:"end"`
-	Timezone string `yaml:"timezone"`
+	Interval time.Duration `yaml:"interval"`
+	Symbols  []string      `yaml:"symbols"`
 }
 
 type LoggingConfig struct {
@@ -65,50 +58,16 @@ type DataRetentionConfig struct {
 
 // Load reads configuration from file and environment variables
 func Load(configPath string) (*Config, error) {
-	// Default configuration
-	cfg := &Config{
-		Server: ServerConfig{
-			Port:         8080,
-			Host:         "localhost",
-			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 30 * time.Second,
-		},
-		Database: DatabaseConfig{
-			Path:            "./data/market-watch.db",
-			MaxOpenConns:    25,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: 5 * time.Minute,
-		},
-		Polygon: PolygonConfig{
-			BaseURL:       "https://api.polygon.io",
-			Timeout:       30 * time.Second,
-			RetryAttempts: 3,
-		},
-		Collection: CollectionConfig{
-			Interval: 5 * time.Minute,
-			Symbols:  []string{"PLTR", "TSLA", "BBAI", "MSFT", "NPWR"},
-			MarketHours: MarketHours{
-				Start:    "09:30",
-				End:      "16:00",
-				Timezone: "America/New_York",
-			},
-		},
-		Logging: LoggingConfig{
-			Level:  "info",
-			Format: "json",
-			Output: "stdout",
-		},
-		DataRetention: DataRetentionConfig{
-			Days:            30,
-			CleanupInterval: 24 * time.Hour,
-		},
+	// Initialize empty configuration - no hardcoded defaults
+	cfg := &Config{}
+
+	// Load from YAML file (required)
+	if configPath == "" {
+		return nil, fmt.Errorf("config file path is required")
 	}
 
-	// Load from YAML file if it exists
-	if configPath != "" {
-		if err := loadFromYAML(cfg, configPath); err != nil {
-			return nil, fmt.Errorf("failed to load config from YAML: %w", err)
-		}
+	if err := loadFromYAML(cfg, configPath); err != nil {
+		return nil, fmt.Errorf("failed to load config from YAML: %w", err)
 	}
 
 	// Override with environment variables
@@ -199,39 +158,4 @@ func validate(cfg *Config) error {
 // GetAddress returns the server address in host:port format
 func (c *Config) GetAddress() string {
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port)
-}
-
-// IsMarketHours checks if the current time is within market hours
-func (c *Config) IsMarketHours() bool {
-	loc, err := time.LoadLocation(c.Collection.MarketHours.Timezone)
-	if err != nil {
-		// Default to Eastern Time
-		loc, _ = time.LoadLocation("America/New_York")
-	}
-
-	now := time.Now().In(loc)
-
-	// Skip weekends
-	if now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-		return false
-	}
-
-	// Parse market hours
-	start, err := time.Parse("15:04", c.Collection.MarketHours.Start)
-	if err != nil {
-		return false
-	}
-
-	end, err := time.Parse("15:04", c.Collection.MarketHours.End)
-	if err != nil {
-		return false
-	}
-
-	// Create times for today
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(),
-		start.Hour(), start.Minute(), 0, 0, loc)
-	todayEnd := time.Date(now.Year(), now.Month(), now.Day(),
-		end.Hour(), end.Minute(), 0, 0, loc)
-
-	return now.After(todayStart) && now.Before(todayEnd)
 }

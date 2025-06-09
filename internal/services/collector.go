@@ -83,10 +83,8 @@ func (cs *CollectorService) Start() error {
 
 	log.Printf("Data collector started with interval: %v", cs.cfg.Collection.Interval)
 
-	// Run initial collection if market is open
-	if cs.cfg.IsMarketHours() {
-		go cs.collectData()
-	}
+	// Run initial collection immediately (24/7 data collection mode)
+	go cs.collectData()
 
 	return nil
 }
@@ -120,16 +118,9 @@ func (cs *CollectorService) collectData() {
 
 	log.Printf("Starting data collection for symbols: %v", cs.cfg.Collection.Symbols)
 
-	// Check if market is open
-	isOpen, err := cs.polygon.GetMarketStatus()
-	if err != nil {
-		log.Printf("Failed to get market status: %v, proceeding anyway", err)
-	}
-
-	if !isOpen {
-		log.Printf("Market is closed, skipping collection")
-		return
-	}
+	// Note: We collect data 24/7 to capture pre-market, after-hours, and extended trading
+	// This ensures we don't miss important price movements that happen outside regular market hours
+	log.Printf("Collecting data (24/7 mode - captures pre-market, after-hours, and extended trading)")
 
 	// Get watched symbols from database
 	symbols, err := cs.db.GetWatchedSymbols()

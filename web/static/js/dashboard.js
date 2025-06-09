@@ -57,9 +57,16 @@ class MarketWatchDashboard {
             const response = await fetch('/api/symbols');
             if (response.ok) {
                 const data = await response.json();
-                if (data && Array.isArray(data) && data.length > 0) {
-                    this.symbols = data.map(symbol => symbol.symbol || symbol);
+                console.log('Raw API response:', data);
+                
+                // Handle the API response structure: {symbols: [...], count: N}
+                if (data && data.symbols && Array.isArray(data.symbols) && data.symbols.length > 0) {
+                    this.symbols = data.symbols.map(symbolObj => symbolObj.symbol);
                     console.log('Loaded symbols from database:', this.symbols);
+                } else if (data && Array.isArray(data) && data.length > 0) {
+                    // Fallback for direct array response
+                    this.symbols = data.map(symbol => symbol.symbol || symbol);
+                    console.log('Loaded symbols from database (fallback):', this.symbols);
                 } else {
                     console.warn('No symbols returned from API - database may be empty');
                     this.symbols = [];

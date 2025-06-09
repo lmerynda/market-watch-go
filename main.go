@@ -139,11 +139,10 @@ func main() {
 					"🖥️ Interactive TradingView-style dashboard",
 				},
 				"polygon_integration": gin.H{
-					"status":       "active",
-					"api_url":      cfg.Polygon.BaseURL,
-					"symbols":      cfg.Collection.Symbols,
-					"interval":     cfg.Collection.Interval.String(),
-					"market_hours": cfg.Collection.MarketHours,
+					"status":   "active",
+					"api_url":  cfg.Polygon.BaseURL,
+					"symbols":  cfg.Collection.Symbols,
+					"interval": cfg.Collection.Interval.String(),
 				},
 				"database": gin.H{
 					"path":            cfg.Database.Path,

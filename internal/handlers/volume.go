@@ -208,14 +208,11 @@ func (vh *VolumeHandler) GetDashboardSummary(c *gin.Context) {
 		}
 	}
 
-	// Get market status
-	isMarketOpen, _ := vh.polygon.GetMarketStatus()
-
 	// Create summary
 	summary := models.DashboardSummary{
-		Symbols:     volumeStats,
-		LastUpdate:  lastUpdate,
-		MarketHours: isMarketOpen,
+		Symbols:        volumeStats,
+		LastUpdate:     lastUpdate,
+		CollectionMode: "24/7", // Indicates continuous data collection
 	}
 
 	c.JSON(http.StatusOK, summary)

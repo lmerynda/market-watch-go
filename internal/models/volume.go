@@ -35,9 +35,9 @@ type VolumeStats struct {
 
 // DashboardSummary represents the summary data for the dashboard
 type DashboardSummary struct {
-	Symbols     []VolumeStats `json:"symbols"`
-	LastUpdate  time.Time     `json:"last_update"`
-	MarketHours bool          `json:"market_hours"`
+	Symbols        []VolumeStats `json:"symbols"`
+	LastUpdate     time.Time     `json:"last_update"`
+	CollectionMode string        `json:"collection_mode"` // "24/7" to indicate continuous collection
 }
 
 // PolygonAggregateResponse represents the response from Polygon.io aggregates API

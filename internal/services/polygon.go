@@ -267,12 +267,6 @@ func (ps *PolygonService) HealthCheck() error {
 	return ps.ValidateAPIKey()
 }
 
-// GetMarketStatus checks if the market is currently open
-func (ps *PolygonService) GetMarketStatus() (bool, error) {
-	// Use config-based market hours check
-	return ps.cfg.IsMarketHours(), nil
-}
-
 // GetLastTradingDay returns the last trading day
 func (ps *PolygonService) GetLastTradingDay() time.Time {
 	now := time.Now()
@@ -282,15 +276,8 @@ func (ps *PolygonService) GetLastTradingDay() time.Time {
 		now = now.AddDate(0, 0, -1)
 	}
 
-	// If market is not open today and it's a weekday, it might be a holiday
-	if !ps.cfg.IsMarketHours() && now.Weekday() != time.Saturday && now.Weekday() != time.Sunday {
-		now = now.AddDate(0, 0, -1)
-		// Make sure we don't go to a weekend
-		for now.Weekday() == time.Saturday || now.Weekday() == time.Sunday {
-			now = now.AddDate(0, 0, -1)
-		}
-	}
-
+	// Since we're operating in 24/7 mode, we don't need to check market hours
+	// Just ensure we're not on a weekend
 	return now
 }
 
