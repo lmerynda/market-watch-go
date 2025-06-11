@@ -33,3 +33,13 @@ logging:
 data_retention:
   days: 30
   cleanup_interval: "24h"
+
+# Email notification settings (Gmail SMTP)
+email:
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  username: "your-email@gmail.com"
+  password: "your-gmail-app-password"
+  from_name: "Market Watch"
+  from_address: "your-email@gmail.com"
+  enabled: true

@@ -67,10 +67,14 @@ func main() {
 	srService := services.NewSupportResistanceService(db, taService)
 	setupService := services.NewSetupDetectionService(db, taService, srService)
 
+	// Initialize email service
+	emailService := services.NewEmailService(cfg)
+
 	// Initialize handlers
 	taHandler := handlers.NewTechnicalAnalysisHandler(db, taService)
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	setupHandler := handlers.NewSetupHandler(db, setupService)
+	emailHandler := handlers.NewEmailHandler(emailService)
 
 	// Check price data and collect recent historical data if needed
 	count, err := db.GetPriceDataCount()
@@ -184,6 +188,9 @@ func main() {
 					"price_chart":         "/api/price/:symbol/chart",
 					"collection_status":   "/api/collection/status",
 					"force_collection":    "POST /api/collection/force",
+					"email_status":        "/api/email/status",
+					"email_test":          "POST /api/email/test",
+					"email_alert":         "POST /api/email/alert",
 				},
 				"examples": gin.H{
 					"view_dashboard":    "GET /",
@@ -196,6 +203,9 @@ func main() {
 					"collection_status": "GET /api/collection/status",
 					"force_collection":  "POST /api/collection/force",
 					"historical_data":   "POST /api/collection/historical/7",
+					"email_status":      "GET /api/email/status",
+					"email_test":        "POST /api/email/test",
+					"email_alert":       "POST /api/email/alert",
 				},
 			})
 		})
@@ -333,6 +343,11 @@ func main() {
 				"to":     to,
 			})
 		})
+
+		// Email notification routes
+		api.GET("/email/status", emailHandler.GetEmailStatus)
+		api.POST("/email/test", emailHandler.SendTestEmail)
+		api.POST("/email/alert", emailHandler.SendTradingAlert)
 	}
 
 	// Main route - serve the TradingView-style dashboard

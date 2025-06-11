@@ -17,6 +17,7 @@ type Config struct {
 	Collection    CollectionConfig    `yaml:"collection"`
 	Logging       LoggingConfig       `yaml:"logging"`
 	DataRetention DataRetentionConfig `yaml:"data_retention"`
+	Email         EmailConfig         `yaml:"email"`
 }
 
 type ServerConfig struct {
@@ -54,6 +55,16 @@ type LoggingConfig struct {
 type DataRetentionConfig struct {
 	Days            int           `yaml:"days"`
 	CleanupInterval time.Duration `yaml:"cleanup_interval"`
+}
+
+type EmailConfig struct {
+	SMTPHost    string `yaml:"smtp_host"`
+	SMTPPort    int    `yaml:"smtp_port"`
+	Username    string `yaml:"username"`
+	Password    string `yaml:"password"`
+	FromName    string `yaml:"from_name"`
+	FromAddress string `yaml:"from_address"`
+	Enabled     bool   `yaml:"enabled"`
 }
 
 // Load reads configuration from file and environment variables
