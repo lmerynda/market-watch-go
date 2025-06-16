@@ -7,6 +7,7 @@ class PatternWatcher {
     this.selectedPattern = null;
     this.currentFilter = "all";
     this.currentWatchlistFilter = "all";
+    this.currentTimeframe = "60"; // Default to 1 hour
     this.tradingViewWidget = null;
     this.refreshInterval = null;
     this.isLoading = false;
@@ -41,6 +42,16 @@ class PatternWatcher {
           this.filterSymbols();
         });
       });
+
+    // Timeframe controls
+    document.querySelectorAll('input[name="timeframe"]').forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        this.currentTimeframe = e.target.value;
+        if (this.selectedSymbol) {
+          this.loadTradingViewChart(this.selectedSymbol);
+        }
+      });
+    });
 
     // Add symbol
     document.getElementById("add-symbol-btn").addEventListener("click", () => {
@@ -91,9 +102,9 @@ class PatternWatcher {
       });
 
     document
-      .getElementById("toggle-annotations")
+      .getElementById("toggle-moving-averages")
       .addEventListener("click", () => {
-        this.toggleAnnotations();
+        this.toggleMovingAverages();
       });
 
     // Thesis panel
@@ -501,7 +512,7 @@ class PatternWatcher {
       width: containerWidth || "100%",
       height: containerHeight || 500,
       symbol: symbol,
-      interval: "15",
+      interval: this.currentTimeframe,
       timezone: "America/New_York",
       theme: "dark",
       style: "1",
@@ -509,6 +520,7 @@ class PatternWatcher {
       toolbar_bg: "#131722",
       enable_publishing: false,
       hide_top_toolbar: false,
+      hide_side_toolbar: false,
       hide_legend: false,
       save_image: false,
       container_id: "tradingview-widget",
@@ -519,7 +531,13 @@ class PatternWatcher {
       details: true,
       hotlist: true,
       calendar: false,
-      studies: ["Volume@tv-basicstudies", "RSI@tv-basicstudies"],
+      show_popup_button: true,
+      studies: [
+        "Volume@tv-basicstudies",
+        "MASimple@tv-basicstudies",
+        "MAExp@tv-basicstudies",
+      ],
+      studies_overrides: {},
       overrides: {
         "paneProperties.background": "#131722",
         "paneProperties.vertGridProperties.color": "#363a45",
@@ -528,12 +546,12 @@ class PatternWatcher {
         "scalesProperties.textColor": "#787b86",
         "scalesProperties.lineColor": "#363a45",
       },
-      disabled_features: ["header_symbol_search", "symbol_search_hot_key"],
-      enabled_features: ["study_templates"],
+      enabled_features: ["study_templates", "drawing_templates"],
       onChartReady: () => {
-        console.log(`TradingView widget loaded successfully for ${symbol}`);
+        console.log(
+          `TradingView widget loaded successfully for ${symbol} on ${this.currentTimeframe} timeframe`
+        );
       },
-      // If symbol fails to load, TradingView will show an error in the widget
     });
 
     console.log("TradingView widget created successfully");
@@ -878,15 +896,11 @@ class PatternWatcher {
 
     if (overlay.classList.contains("d-none")) {
       overlay.classList.remove("d-none");
-      btn.innerHTML = '<i class="bi bi-eye-slash"></i> Hide Patterns';
+      btn.innerHTML = '<i class="bi bi-eye-slash"></i> Patterns';
     } else {
       overlay.classList.add("d-none");
-      btn.innerHTML = '<i class="bi bi-eye"></i> Show Patterns';
+      btn.innerHTML = '<i class="bi bi-eye"></i> Patterns';
     }
-  }
-
-  toggleAnnotations() {
-    this.showInfo("Annotations feature coming soon!");
   }
 
   toggleThesisPanel() {

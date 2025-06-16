@@ -130,16 +130,28 @@
                             <h5 class="mb-0" id="selected-symbol">Select a symbol to view chart</h5>
                             <small class="text-muted" id="pattern-info">No symbol selected</small>
                         </div>
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-secondary" id="toggle-pattern-overlay">
-                                <i class="bi bi-eye"></i> Show Patterns
-                            </button>
-                            <button class="btn btn-outline-secondary" id="toggle-annotations">
-                                <i class="bi bi-chat-dots"></i> Annotations
-                            </button>
-                            <button class="btn btn-outline-info" id="detect-pattern-btn" disabled>
-                                <i class="bi bi-search"></i> Detect Patterns
-                            </button>
+                        <div class="d-flex gap-2">
+                            <!-- Timeframe Controls -->
+                            <div class="btn-group btn-group-sm" role="group">
+                                <input type="radio" class="btn-check" name="timeframe" id="timeframe-1h" value="60" checked>
+                                <label class="btn btn-outline-primary" for="timeframe-1h">1H</label>
+                                
+                                <input type="radio" class="btn-check" name="timeframe" id="timeframe-1d" value="1D">
+                                <label class="btn btn-outline-primary" for="timeframe-1d">1D</label>
+                                
+                                <input type="radio" class="btn-check" name="timeframe" id="timeframe-1w" value="1W">
+                                <label class="btn btn-outline-primary" for="timeframe-1w">1W</label>
+                            </div>
+
+                            <!-- Chart Controls -->
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" id="toggle-pattern-overlay">
+                                    <i class="bi bi-eye"></i> Patterns
+                                </button>
+                                <button class="btn btn-outline-info" id="detect-pattern-btn" disabled>
+                                    <i class="bi bi-search"></i> Detect
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body p-0 position-relative">
