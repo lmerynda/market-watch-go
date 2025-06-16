@@ -16,17 +16,19 @@ import (
 )
 
 type VolumeHandler struct {
-	db        *database.DB
-	collector *services.CollectorService
-	polygon   *services.PolygonService
+	db             *database.DB
+	collector      *services.CollectorService
+	polygon        *services.PolygonService
+	patternService *services.PatternDetectionService
 }
 
 // NewVolumeHandler creates a new volume handler
-func NewVolumeHandler(db *database.DB, collector *services.CollectorService, polygon *services.PolygonService) *VolumeHandler {
+func NewVolumeHandler(db *database.DB, collector *services.CollectorService, polygon *services.PolygonService, patternService *services.PatternDetectionService) *VolumeHandler {
 	return &VolumeHandler{
-		db:        db,
-		collector: collector,
-		polygon:   polygon,
+		db:             db,
+		collector:      collector,
+		polygon:        polygon,
+		patternService: patternService,
 	}
 }
 
@@ -444,6 +446,11 @@ func (vh *VolumeHandler) AddWatchedSymbol(c *gin.Context) {
 			log.Printf("Failed to collect initial data for symbol %s: %v", req.Symbol, err)
 		}
 	}()
+
+	// Trigger automatic pattern detection for the new symbol
+	if vh.patternService != nil {
+		vh.patternService.OnSymbolAdded(req.Symbol)
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Symbol added successfully",

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern Watcher - Market Watch</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- TradingView Widgets -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <!-- Custom CSS -->
+    <link href="/static/css/styles.css" rel="stylesheet">
+    <link href="/static/css/pattern-watcher.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container-fluid h-100">
+        <!-- Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-bold" href="/">
+                    <i class="bi bi-eye me-2"></i>Pattern Watcher
+                </a>
+                <div class="navbar-nav ms-auto">
+                    <div class="nav-item dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#" data-filter="all">All Patterns</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="head_shoulders">Head & Shoulders</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="inverse_head_shoulders">Inverse H&S</a>
+                            </li>
+                            <li><a class="dropdown-item" href="#" data-filter="cup_handle">Cup & Handle</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="triangle">Triangle</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="flag">Flag</a></li>
+                            <li><a class="dropdown-item" href="#" data-filter="wedge">Wedge</a></li>
+                        </ul>
+                    </div>
+                    <a href="/dashboard" class="btn btn-outline-secondary ms-2">
+                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="row h-100">
+            <!-- Symbol Watchlist (Left 25%) -->
+            <div class="col-lg-3 h-100 p-0">
+                <div class="card h-100 rounded-0">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="bi bi-list-ul me-2"></i>Watchlist
+                            </h6>
+                            <span class="badge bg-primary" id="symbol-count">0</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <!-- Add Symbol -->
+                        <div class="p-3 border-bottom">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" id="add-symbol-input"
+                                    placeholder="Add symbol (e.g., AAPL)">
+                                <button class="btn btn-success" id="add-symbol-btn">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Symbol Search -->
+                        <div class="p-3 border-bottom">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="symbol-search"
+                                    placeholder="Search symbols...">
+                            </div>
+                        </div>
+
+                        <!-- Control Buttons -->
+                        <div class="p-3 border-bottom">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary btn-sm" id="refresh-symbols-btn">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh Data
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" id="scan-patterns-btn">
+                                    <i class="bi bi-search"></i> Scan All Now
+                                </button>
+                            </div>
+                            <small class="text-muted mt-2 d-block">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Patterns are automatically detected every 30 minutes
+                            </small>
+                        </div>
+
+                        <!-- Symbols List -->
+                        <div id="symbols-list" class="overflow-auto" style="height: calc(100vh - 320px);">
+                            <div class="text-center p-4 text-muted">
+                                <div class="spinner-border spinner-border-sm me-2"></div>
+                                Loading symbols...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Area (Center 50%) -->
+            <div class="col-lg-6 h-100 p-0">
+                <div class="card h-100 rounded-0">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0" id="selected-symbol">Select a symbol to view chart</h5>
+                            <small class="text-muted" id="pattern-info">No symbol selected</small>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" id="toggle-pattern-overlay">
+                                <i class="bi bi-eye"></i> Show Patterns
+                            </button>
+                            <button class="btn btn-outline-secondary" id="toggle-annotations">
+                                <i class="bi bi-chat-dots"></i> Annotations
+                            </button>
+                            <button class="btn btn-outline-info" id="detect-pattern-btn" disabled>
+                                <i class="bi bi-search"></i> Detect Patterns
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 position-relative">
+                        <!-- TradingView Widget Container -->
+                        <div id="tradingview-widget" class="w-100 h-100">
+                            <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                                <div class="text-center">
+                                    <i class="bi bi-graph-up-arrow display-1 opacity-25"></i>
+                                    <h4 class="mt-3">Select a Symbol</h4>
+                                    <p>Choose a symbol from the watchlist to view its chart and patterns</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pattern Overlay -->
+                        <div id="pattern-overlay"
+                            class="position-absolute top-0 start-0 w-100 h-100 pointer-events-none d-none">
+                            <svg class="w-100 h-100" id="pattern-svg">
+                                <!-- Pattern annotations will be drawn here -->
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pattern Details (Right 25%) -->
+            <div class="col-lg-3 h-100 p-0">
+                <div class="card h-100 rounded-0">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="bi bi-graph-up-arrow me-2"></i>Detected Patterns
+                            </h6>
+                            <span class="badge bg-success" id="pattern-count">0</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <!-- Pattern Type Filter -->
+                        <div class="p-3 border-bottom">
+                            <select class="form-select form-select-sm" id="pattern-type-filter">
+                                <option value="all">All Pattern Types</option>
+                                <option value="head_shoulders">Head & Shoulders</option>
+                                <option value="inverse_head_shoulders">Inverse H&S</option>
+                                <option value="cup_handle">Cup & Handle</option>
+                                <option value="triangle">Triangle</option>
+                                <option value="flag">Flag</option>
+                                <option value="wedge">Wedge</option>
+                            </select>
+                        </div>
+
+                        <!-- Patterns List -->
+                        <div id="patterns-list" class="overflow-auto" style="height: calc(100vh - 200px);">
+                            <div class="text-center p-4 text-muted">
+                                <i class="bi bi-graph-up-arrow display-4 opacity-25"></i>
+                                <p class="mt-3">No patterns detected</p>
+                                <small>Select a symbol and click "Detect Patterns"</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Thesis Panel (Collapsible) -->
+        <div class="position-fixed bottom-0 start-0 w-100" id="thesis-panel"
+            style="transform: translateY(calc(100% - 60px)); transition: transform 0.3s ease; z-index: 1040;">
+            <div class="card rounded-0 shadow-lg">
+                <div class="card-header bg-dark text-light cursor-pointer" id="thesis-panel-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="bi bi-list-check me-2"></i>Thesis Tracker
+                            <span id="thesis-symbol" class="text-muted ms-2">- No pattern selected</span>
+                        </h6>
+                        <div class="d-flex align-items-center">
+                            <div class="progress me-3" style="width: 100px; height: 20px;">
+                                <div class="progress-bar" id="thesis-progress" style="width: 0%"></div>
+                            </div>
+                            <span id="thesis-completion" class="text-light me-3">0/0</span>
+                            <i class="bi bi-chevron-up" id="thesis-panel-toggle"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" style="height: 400px; overflow-y: auto;">
+                    <div id="thesis-content">
+                        <div class="text-center text-muted p-4">
+                            <i class="bi bi-list-check display-4 opacity-25"></i>
+                            <p class="mt-3">Select a pattern to view thesis components</p>
+                            <small>Thesis tracking helps validate pattern setups with detailed criteria</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container for Notifications -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 1055">
+        <div id="toast-container"></div>
+    </div>
+
+    <!-- Pattern Details Modal -->
+    <div class="modal fade" id="pattern-details-modal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Pattern Analysis</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="pattern-details-content">
+                        <!-- Pattern details will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-pattern-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Symbol Modal -->
+    <div class="modal fade" id="add-symbol-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Symbol to Watchlist</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-symbol-form">
+                        <div class="mb-3">
+                            <label for="symbol-input" class="form-label">Symbol</label>
+                            <input type="text" class="form-control" id="symbol-input"
+                                placeholder="e.g., AAPL, TSLA, MSFT" required>
+                            <div class="form-text">Enter a valid stock ticker symbol</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="pattern-types-input" class="form-label">Pattern Types to Watch</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="head_shoulders" id="hs-check"
+                                    checked>
+                                <label class="form-check-label" for="hs-check">Head & Shoulders</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="inverse_head_shoulders"
+                                    id="ihs-check" checked>
+                                <label class="form-check-label" for="ihs-check">Inverse Head & Shoulders</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="cup_handle" id="ch-check">
+                                <label class="form-check-label" for="ch-check">Cup & Handle</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="triangle" id="tri-check">
+                                <label class="form-check-label" for="tri-check">Triangle</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="flag" id="flag-check">
+                                <label class="form-check-label" for="flag-check">Flag</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="scan-frequency" class="form-label">Scan Frequency</label>
+                            <select class="form-select" id="scan-frequency">
+                                <option value="5min">Every 5 minutes</option>
+                                <option value="15min">Every 15 minutes</option>
+                                <option value="1hour" selected>Every hour</option>
+                                <option value="4hour">Every 4 hours</option>
+                                <option value="daily">Daily</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-symbol-btn">Add to Watchlist</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Component Update Modal -->
+    <div class="modal fade" id="component-update-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Update Thesis Component</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="component-update-form">
+                        <input type="hidden" id="update-pattern-id">
+                        <input type="hidden" id="update-component-name">
+
+                        <div class="mb-3">
+                            <label class="form-label">Component Name</label>
+                            <input type="text" class="form-control" id="display-component-name" readonly>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="update-is-completed">
+                                <label class="form-check-label" for="update-is-completed">
+                                    Mark as Completed
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="update-confidence" class="form-label">Confidence Level (%)</label>
+                            <input type="range" class="form-range" id="update-confidence" min="0" max="100" step="5">
+                            <div class="text-center">
+                                <span id="confidence-display">50%</span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="update-evidence" class="form-label">Evidence</label>
+                            <textarea class="form-control" id="update-evidence" rows="3"
+                                placeholder="Enter supporting evidence (one per line)"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="update-notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="update-notes" rows="2"
+                                placeholder="Additional notes"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-component-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Custom JavaScript -->
+    <script src="/static/js/pattern-watcher.js"></script>
+
+    <!-- Initialize tooltips -->
+    <script>
+        // Initialize Bootstrap tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
+</body>
+
+</html>

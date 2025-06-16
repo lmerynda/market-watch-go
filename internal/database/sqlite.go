@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"market-watch-go/internal/config"
 
@@ -41,6 +42,24 @@ func New(cfg *config.Config) (*DB, error) {
 	if err := db.initSchema(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
+	}
+
+	// Run migrations
+	if err := db.runMigrations(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	// Initialize setup tables (includes trading setups schema)
+	if err := db.CreateSetupTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize setup tables: %w", err)
+	}
+
+	// Initialize head and shoulders pattern tables
+	if err := db.CreateHeadShouldersPatternTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize head and shoulders pattern tables: %w", err)
 	}
 
 	log.Printf("Database initialized at %s", cfg.Database.Path)
@@ -127,6 +146,7 @@ func (db *DB) initSchema() error {
 		symbol TEXT NOT NULL,
 		setup_type TEXT NOT NULL,
 		direction TEXT NOT NULL CHECK (direction IN ('long', 'short')),
+		current_price REAL,
 		entry_price REAL,
 		stop_loss REAL,
 		target1 REAL,
@@ -293,6 +313,21 @@ func (db *DB) GetDatabaseStats() (map[string]int64, error) {
 	}
 
 	return stats, nil
+}
+
+// runMigrations applies database migrations for schema updates
+func (db *DB) runMigrations() error {
+	// Add current_price column to trading_setups if it doesn't exist
+	alterQuery := `ALTER TABLE trading_setups ADD COLUMN current_price REAL`
+
+	// Check if column already exists by trying to add it
+	// SQLite will return an error if column already exists, which we can ignore
+	_, err := db.conn.Exec(alterQuery)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		log.Printf("Warning: Failed to add current_price column (might already exist): %v", err)
+	}
+
+	return nil
 }
 
 // Ping checks if the database connection is alive

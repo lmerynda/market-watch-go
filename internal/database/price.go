@@ -132,6 +132,16 @@ func (db *DB) GetPriceData(filter *models.PriceDataFilter) ([]*models.PriceData,
 	return data, nil
 }
 
+// GetPriceDataRange retrieves price data for a symbol within a specific time range
+func (db *DB) GetPriceDataRange(symbol string, startTime, endTime time.Time) ([]*models.PriceData, error) {
+	filter := &models.PriceDataFilter{
+		Symbol: symbol,
+		From:   startTime,
+		To:     endTime,
+	}
+	return db.GetPriceData(filter)
+}
+
 // GetLatestPriceData retrieves the latest price data for a symbol
 func (db *DB) GetLatestPriceData(symbol string) (*models.PriceData, error) {
 	query := `

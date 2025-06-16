@@ -105,6 +105,24 @@ Market Watch System`,
 	return e.SendEmail(message)
 }
 
+// SendThesisComponentAlert sends an email for a completed thesis component
+func (e *EmailService) SendThesisComponentAlert(pattern interface{}, component interface{}, emailData interface{}) error {
+	// For now, we'll use a simplified approach
+	// This method signature is kept for compatibility but internally uses the existing email structure
+
+	subject := "Thesis Component Alert"
+	body := "A thesis component has been completed. Please check the application for details."
+
+	message := &EmailMessage{
+		To:      []string{"admin@example.com"}, // TODO: Get from config
+		Subject: subject,
+		Body:    body,
+		IsHTML:  false,
+	}
+
+	return e.SendEmail(message)
+}
+
 // SendTradingAlert sends a trading setup alert email
 func (e *EmailService) SendTradingAlert(recipient, symbol, setupType string, score float64, details string) error {
 	subject := fmt.Sprintf("🚨 Trading Alert: %s - %s Setup (Score: %.1f)", symbol, setupType, score)

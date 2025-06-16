@@ -70,11 +70,18 @@ func main() {
 	// Initialize email service
 	emailService := services.NewEmailService(cfg)
 
+	// Initialize head and shoulders detection service
+	hsService := services.NewHeadShouldersDetectionService(db, setupService, taService, emailService)
+
+	// Initialize automatic pattern detection service
+	patternService := services.NewPatternDetectionService(db, taService, hsService, emailService)
+
 	// Initialize handlers
 	taHandler := handlers.NewTechnicalAnalysisHandler(db, taService)
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	setupHandler := handlers.NewSetupHandler(db, setupService)
 	emailHandler := handlers.NewEmailHandler(emailService)
+	hsHandler := handlers.NewHeadShouldersHandler(db, hsService)
 
 	// Check price data and collect recent historical data if needed
 	count, err := db.GetPriceDataCount()
@@ -112,6 +119,20 @@ func main() {
 	} else {
 		log.Printf("✅ Data collector started (interval: %v)", cfg.Collection.Interval)
 	}
+
+	// Start automatic pattern detection service
+	patternService.StartPeriodicPatternDetection()
+	log.Printf("✅ Automatic pattern detection started")
+
+	// Run initial pattern detection for all watched symbols
+	go func() {
+		log.Printf("🔍 Running initial pattern detection for all symbols...")
+		if err := patternService.AutoDetectPatternsForAllSymbols(); err != nil {
+			log.Printf("❌ Initial pattern detection failed: %v", err)
+		} else {
+			log.Printf("✅ Initial pattern detection completed")
+		}
+	}()
 
 	// Setup Gin router
 	router := gin.Default()
@@ -292,7 +313,7 @@ func main() {
 		})
 
 		// Symbol management endpoints
-		volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService)
+		volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
 		api.GET("/symbols", volumeHandler.GetWatchedSymbols)
 		api.POST("/symbols", volumeHandler.AddWatchedSymbol)
 		api.DELETE("/symbols/:symbol", volumeHandler.RemoveWatchedSymbol)
@@ -348,6 +369,26 @@ func main() {
 		api.GET("/email/status", emailHandler.GetEmailStatus)
 		api.POST("/email/test", emailHandler.SendTestEmail)
 		api.POST("/email/alert", emailHandler.SendTradingAlert)
+
+		// Head and Shoulders Pattern routes
+		hs := api.Group("/head-shoulders")
+		{
+			// General pattern routes
+			hs.GET("/patterns", hsHandler.GetAllPatterns)
+			hs.POST("/patterns/monitor", hsHandler.MonitorAllPatterns)
+			hs.GET("/patterns/stats", hsHandler.GetPatternStatistics)
+
+			// Symbol-based routes
+			hs.GET("/symbols/:symbol/patterns", hsHandler.GetPatternsBySymbol)
+			hs.POST("/symbols/:symbol/detect", hsHandler.DetectPattern)
+
+			// ID-based routes (using different path structure)
+			hs.GET("/pattern/:id/details", hsHandler.GetPatternDetails)
+			hs.GET("/pattern/:id/thesis", hsHandler.GetThesisComponents)
+			hs.PUT("/pattern/:id/thesis/:component", hsHandler.UpdateThesisComponent)
+			hs.GET("/pattern/:id/alerts", hsHandler.GetPatternAlerts)
+			hs.GET("/pattern/:id/performance", hsHandler.GetPatternPerformance)
+		}
 	}
 
 	// Main route - serve the TradingView-style dashboard
@@ -357,6 +398,18 @@ func main() {
 	// Legacy dashboard route (redirect to main)
 	router.GET("/dashboard", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/")
+	})
+
+	// Pattern Watcher page
+	router.GET("/pattern-watcher", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "pattern-watcher.html", gin.H{
+			"title": "Pattern Watcher",
+		})
+	})
+
+	// Legacy route for backward compatibility
+	router.GET("/inverse-head-shoulders", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/pattern-watcher")
 	})
 
 	// Start server

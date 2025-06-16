@@ -47,6 +47,9 @@
             </a>
 
             <div class="navbar-nav ms-auto">
+                <a href="/inverse-head-shoulders" class="nav-link btn btn-warning me-3" style="border-radius: 5px;">
+                    <i class="bi bi-graph-up-arrow me-1"></i>Head & Shoulders Monitor
+                </a>
                 <span class="navbar-text price-ticker me-3" id="market-status">
                     <i class="bi bi-circle-fill text-success"></i> Market Open
                 </span>
@@ -58,6 +61,27 @@
     </nav>
 
     <div class="container-fluid mt-3">
+        <!-- New Feature Banner -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-warning border-warning" role="alert">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-graph-up-arrow me-2 fs-4"></i>
+                            <div>
+                                <h6 class="alert-heading mb-1">🚀 NEW: Inverse Head & Shoulders Pattern Monitor</h6>
+                                <small>Advanced pattern detection with 16-component thesis tracking and real-time
+                                    monitoring</small>
+                            </div>
+                        </div>
+                        <a href="/inverse-head-shoulders" class="btn btn-dark">
+                            <i class="bi bi-arrow-right me-1"></i>Open Monitor
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Controls Header -->
         <div class="row mb-3">
             <div class="col-md-8">
@@ -88,10 +112,16 @@
 
             <div class="col-md-4 text-end">
                 <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-info btn-sm" id="force-collection-btn">
+                    <a href="/inverse-head-shoulders" class="btn btn-warning btn-sm" data-bs-toggle="tooltip"
+                        data-bs-placement="bottom" title="Open Inverse Head & Shoulders Pattern Monitor">
+                        <i class="bi bi-graph-up-arrow"></i> H&S Patterns
+                    </a>
+                    <button type="button" class="btn btn-outline-info btn-sm" id="force-collection-btn"
+                        data-bs-toggle="tooltip" data-bs-placement="bottom" title="Force immediate data collection">
                         <i class="bi bi-download"></i> Force Collection
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="manage-symbols-btn">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="manage-symbols-btn"
+                        data-bs-toggle="tooltip" data-bs-placement="bottom" title="Manage watched symbols">
                         <i class="bi bi-gear"></i> Manage Symbols
                     </button>
                 </div>
@@ -196,6 +226,12 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="patterns-tab" data-bs-toggle="tab"
+                                    data-bs-target="#patterns-pane" type="button" role="tab">
+                                    <i class="bi bi-graph-up-arrow me-1"></i>Patterns
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="levels-tab" data-bs-toggle="tab"
                                     data-bs-target="#levels-pane" type="button" role="tab">
                                     <i class="bi bi-bar-chart-line me-1"></i>S/R
@@ -222,6 +258,50 @@
                                     <div class="text-center text-tv-muted">
                                         <div class="spinner-border spinner-border-sm me-2"></div>
                                         Loading trading setups...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Head & Shoulders Patterns Tab -->
+                            <div class="tab-pane fade" id="patterns-pane" role="tabpanel">
+                                <div id="head-shoulders-patterns">
+                                    <div class="text-center mb-3">
+                                        <h6 class="text-tv-primary">
+                                            <i class="bi bi-graph-up-arrow me-2"></i>Head & Shoulders Patterns
+                                        </h6>
+                                        <p class="text-tv-secondary small">Advanced pattern recognition with detailed
+                                            thesis tracking</p>
+                                    </div>
+
+                                    <div class="d-grid gap-2">
+                                        <a href="/inverse-head-shoulders" class="btn btn-warning btn-sm">
+                                            <i class="bi bi-graph-up-arrow me-2"></i>
+                                            Open Pattern Monitor
+                                        </a>
+                                        <small class="text-tv-muted text-center">
+                                            Monitor inverse head & shoulders patterns with real-time thesis tracking
+                                        </small>
+                                    </div>
+
+                                    <hr class="my-3 border-tv">
+
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <div class="small text-tv-secondary mb-1">Features</div>
+                                            <div class="text-tv-primary">
+                                                <i class="bi bi-check-circle text-success"></i> Pattern Detection<br>
+                                                <i class="bi bi-check-circle text-success"></i> Thesis Tracking<br>
+                                                <i class="bi bi-check-circle text-success"></i> Real-time Updates
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="small text-tv-secondary mb-1">Components</div>
+                                            <div class="text-tv-primary">
+                                                <span class="badge bg-info">16</span> Thesis Items<br>
+                                                <span class="badge bg-success">4</span> Categories<br>
+                                                <span class="badge bg-warning">Auto</span> Monitoring
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
