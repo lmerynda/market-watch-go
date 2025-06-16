@@ -583,6 +583,24 @@ h6 {
     color: var(--tv-text-primary);
 }
 
+/* TradingView Widget Sizing */
+#tradingview-widget {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 400px;
+    max-height: calc(100vh - 200px);
+    overflow: hidden;
+    position: relative;
+    background: var(--tv-background);
+}
+
+#tradingview-widget iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none;
+    background: var(--tv-background);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .card-body {
@@ -601,6 +619,18 @@ h6 {
     .btn {
         font-size: 11px;
         padding: 4px 8px;
+    }
+
+    #tradingview-widget {
+        max-height: calc(100vh - 300px);
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 1200px) {
+    #tradingview-widget {
+        max-height: calc(100vh - 250px);
+        min-height: 350px;
     }
 }
 

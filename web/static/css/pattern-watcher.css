@@ -307,6 +307,50 @@
 #tradingview-widget {
     background: var(--pw-bg-primary);
     border-radius: 0;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 600px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* TradingView Widget Iframe Container */
+#tradingview-widget iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none;
+    background: var(--pw-bg-primary);
+}
+
+/* Chart Container Card Body */
+.col-lg-8 .card-body {
+    padding: 0 !important;
+    height: calc(100vh - 150px);
+    min-height: 600px;
+    overflow: hidden;
+}
+
+/* Responsive Chart Height */
+@media (max-width: 1200px) {
+    #tradingview-widget {
+        min-height: 500px;
+    }
+    
+    .col-lg-8 .card-body {
+        height: calc(100vh - 180px);
+        min-height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    #tradingview-widget {
+        min-height: 400px;
+    }
+    
+    .col-lg-8 .card-body, .col-lg-4 .card-body {
+        height: calc(100vh - 220px);
+        min-height: 400px;
+    }
 }
 
 /* Pattern Overlay */
