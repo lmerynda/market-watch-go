@@ -469,46 +469,7 @@ class PatternWatcher {
     try {
       // Wait a bit for the container to be ready
       setTimeout(() => {
-        // Get container dimensions
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-
-        this.tradingViewWidget = new TradingView.widget({
-          width: containerWidth || "100%",
-          height: containerHeight || 500,
-          symbol: `NASDAQ:${symbol}`,
-          interval: "15",
-          timezone: "America/New_York",
-          theme: "dark",
-          style: "1",
-          locale: "en",
-          toolbar_bg: "#131722",
-          enable_publishing: false,
-          hide_top_toolbar: false,
-          hide_legend: false,
-          save_image: false,
-          container_id: "tradingview-widget",
-          autosize: true,
-          show_popup_button: true,
-          popup_width: "1000",
-          popup_height: "650",
-          details: true,
-          hotlist: true,
-          calendar: false,
-          studies: ["Volume@tv-basicstudies", "RSI@tv-basicstudies"],
-          overrides: {
-            "paneProperties.background": "#131722",
-            "paneProperties.vertGridProperties.color": "#363a45",
-            "paneProperties.horzGridProperties.color": "#363a45",
-            "symbolWatermarkProperties.transparency": 90,
-            "scalesProperties.textColor": "#787b86",
-            "scalesProperties.lineColor": "#363a45",
-          },
-          disabled_features: ["header_symbol_search", "symbol_search_hot_key"],
-          enabled_features: ["study_templates"],
-        });
-
-        console.log("TradingView widget created successfully");
+        this.createTradingViewWidget(symbol, container);
       }, 100);
     } catch (error) {
       console.error("Failed to load TradingView chart:", error);
@@ -523,6 +484,59 @@ class PatternWatcher {
         </div>
       `;
     }
+  }
+
+  createTradingViewWidget(
+    symbol,
+    container,
+    fallbackExchanges = ["NASDAQ", "NYSE", "AMEX"]
+  ) {
+    // Get container dimensions
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    console.log(`Trying to load ${symbol}`);
+
+    this.tradingViewWidget = new TradingView.widget({
+      width: containerWidth || "100%",
+      height: containerHeight || 500,
+      symbol: symbol,
+      interval: "15",
+      timezone: "America/New_York",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      toolbar_bg: "#131722",
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      container_id: "tradingview-widget",
+      autosize: true,
+      show_popup_button: true,
+      popup_width: "1000",
+      popup_height: "650",
+      details: true,
+      hotlist: true,
+      calendar: false,
+      studies: ["Volume@tv-basicstudies", "RSI@tv-basicstudies"],
+      overrides: {
+        "paneProperties.background": "#131722",
+        "paneProperties.vertGridProperties.color": "#363a45",
+        "paneProperties.horzGridProperties.color": "#363a45",
+        "symbolWatermarkProperties.transparency": 90,
+        "scalesProperties.textColor": "#787b86",
+        "scalesProperties.lineColor": "#363a45",
+      },
+      disabled_features: ["header_symbol_search", "symbol_search_hot_key"],
+      enabled_features: ["study_templates"],
+      onChartReady: () => {
+        console.log(`TradingView widget loaded successfully for ${symbol}`);
+      },
+      // If symbol fails to load, TradingView will show an error in the widget
+    });
+
+    console.log("TradingView widget created successfully");
   }
 
   loadThesisComponents(pattern) {
