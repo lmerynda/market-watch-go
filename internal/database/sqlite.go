@@ -62,6 +62,12 @@ func New(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize head and shoulders pattern tables: %w", err)
 	}
 
+	// Initialize falling wedge pattern tables
+	if err := db.CreateFallingWedgePatternTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize falling wedge pattern tables: %w", err)
+	}
+
 	log.Printf("Database initialized at %s", cfg.Database.Path)
 	return db, nil
 }
