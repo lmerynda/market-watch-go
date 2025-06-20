@@ -1,32 +1,58 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
-	"net/http"
-	"strconv"
-	"time"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
 	"market-watch-go/internal/config"
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/handlers"
-	"market-watch-go/internal/models"
 	"market-watch-go/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// Load configuration from the existing config file
-	cfg, err := config.Load("configs/config.yaml")
-	if err != nil {
-		log.Fatalf("Failed to load configuration from configs/config.yaml: %v", err)
+	// Parse command line flags
+	var (
+		configPath = flag.String("config", "configs/config.yaml", "Path to configuration file")
+		envFile    = flag.String("env", "", "Path to environment file")
+		historical = flag.Int("historical", 0, "Collect historical data for N days (0 = disabled)")
+	)
+	flag.Parse()
+
+	// Load environment variables from .env file
+	if *envFile != "" {
+		if err := config.LoadEnvFile(*envFile); err != nil {
+			log.Printf("Warning: Failed to load environment file %s: %v", *envFile, err)
+		}
+	} else {
+		// Try to load .env file from current directory
+		if err := config.LoadEnvFile(".env"); err != nil {
+			log.Printf("Warning: Failed to load .env file: %v", err)
+		}
 	}
 
-	log.Printf("✅ Configuration loaded from configs/config.yaml")
-	log.Printf("📊 Database: %s", cfg.Database.Path)
-	log.Printf("🔗 Polygon API: %s", cfg.Polygon.BaseURL)
-	log.Printf("📈 Config symbols: %v", cfg.Collection.Symbols)
+	// Load configuration
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Printf("Failed to load configuration: %v", err)
+		log.Printf("\n" +
+			"🔑 SETUP REQUIRED:\n" +
+			"Please set your Polygon.io API key in one of these ways:\n" +
+			"1. Edit the .env file and replace 'your_polygon_api_key_here' with your actual API key\n" +
+			"2. Set environment variable: export POLYGON_API_KEY=your_actual_api_key\n" +
+			"3. Edit configs/config.yaml and update the polygon.api_key field\n\n" +
+			"💡 Get a free API key at: https://polygon.io/\n" +
+			"   1. Sign up for a free account\n" +
+			"   2. Go to Dashboard -> API Keys\n" +
+			"   3. Copy your API key\n")
+		os.Exit(1)
+	}
 
 	// Initialize database
 	db, err := database.New(cfg)
@@ -35,397 +61,280 @@ func main() {
 	}
 	defer db.Close()
 
-	// Ensure config symbols are in the watched symbols table
-	if err := db.EnsureConfigSymbolsWatched(cfg.Collection.Symbols); err != nil {
-		log.Fatalf("Failed to ensure config symbols are watched: %v", err)
-	}
-
-	// Get watched symbols from database (should now include config symbols)
-	watchedSymbols, err := db.GetWatchedSymbols()
-	if err != nil {
-		log.Fatalf("Failed to get watched symbols: %v", err)
-	}
-
-	log.Printf("📈 Watched symbols from database: %v", watchedSymbols)
-
-	// Initialize Polygon service with API key from config
+	// Initialize Polygon service
 	polygonService := services.NewPolygonService(cfg)
 
-	// Validate Polygon API key from config
+	// Validate Polygon API key
 	if err := polygonService.ValidateAPIKey(); err != nil {
-		log.Printf("❌ Polygon API validation failed: %v", err)
-		log.Printf("Note: Check API key in configs/config.yaml")
-	} else {
-		log.Printf("✅ Polygon API key validated successfully")
+		log.Fatalf("Failed to validate Polygon API key: %v", err)
 	}
 
 	// Initialize collector service
 	collectorService := services.NewCollectorService(db, polygonService, cfg)
 
-	// Initialize technical analysis and other services
-	taService := services.NewTechnicalAnalysisService(db, &services.TechnicalAnalysisConfig{})
+	// Collect historical data if requested, or default minimum for dashboard functionality
+	historicalDays := *historical
+	if historicalDays == 0 {
+		// Default to 30 days to support all dashboard time ranges (1D, 1W, 2W, 1M)
+		historicalDays = 30
+		log.Printf("Auto-collecting 30 days of historical data to support all dashboard time ranges...")
+	} else {
+		log.Printf("Collecting historical data for %d days...", historicalDays)
+	}
+
+	if err := collectorService.CollectHistoricalData(historicalDays); err != nil {
+		log.Printf("Failed to collect historical data: %v", err)
+	} else {
+		log.Printf("Historical data collection completed")
+	}
+
+	// Start the collector service
+	if err := collectorService.Start(); err != nil {
+		log.Fatalf("Failed to start collector service: %v", err)
+	}
+	defer collectorService.Stop()
+
+	// Force initial collection to ensure we have some data
+	log.Printf("Triggering initial data collection...")
+	if err := collectorService.ForceCollection(); err != nil {
+		log.Printf("Warning: Failed to trigger initial collection: %v", err)
+	}
+
+	// Initialize services
+	taService := services.NewTechnicalAnalysisService(db, nil)
 	srService := services.NewSupportResistanceService(db, taService)
 	setupService := services.NewSetupDetectionService(db, taService, srService)
 
 	// Initialize email service
 	emailService := services.NewEmailService(cfg)
 
-	// Initialize head and shoulders detection service
+	// Initialize pattern detection services
+	fallingWedgeService := services.NewFallingWedgeDetectionService(db, taService, emailService)
 	hsService := services.NewHeadShouldersDetectionService(db, setupService, taService, emailService)
-
-	// Initialize automatic pattern detection service
 	patternService := services.NewPatternDetectionService(db, taService, hsService, emailService)
 
 	// Initialize handlers
+	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
+	priceHandler := handlers.NewPriceHandler(db, collectorService, polygonService)
+	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
+	debugHandler := handlers.NewDebugHandler(db)
 	taHandler := handlers.NewTechnicalAnalysisHandler(db, taService)
-	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	setupHandler := handlers.NewSetupHandler(db, setupService)
-	emailHandler := handlers.NewEmailHandler(emailService)
+	srHandler := handlers.NewSupportResistanceHandler(db, srService)
+	fallingWedgeHandler := handlers.NewFallingWedgeHandler(db, fallingWedgeService)
 	hsHandler := handlers.NewHeadShouldersHandler(db, hsService)
+	patternsHandler := handlers.NewPatternsHandler(db, patternService, hsService, fallingWedgeService)
 
-	// Check price data and collect recent historical data if needed
-	count, err := db.GetPriceDataCount()
-	if err != nil {
-		log.Printf("Failed to check price data count: %v", err)
-	} else {
-		log.Printf("✅ Found %d price data records in database", count)
-
-		if count == 0 {
-			log.Printf("📊 No price data found. Collecting 7 days of historical data for symbols: %v", cfg.Collection.Symbols)
-			// Collect 7 days of historical data for all symbols
-			go func() {
-				if err := collectorService.CollectHistoricalData(7); err != nil {
-					log.Printf("❌ Failed to collect historical data: %v", err)
-				} else {
-					log.Printf("✅ Historical data collection completed")
-				}
-			}()
-		} else {
-			// Always collect 1 day of recent data on startup to ensure charts work
-			log.Printf("📊 Collecting recent 1-day data to ensure chart availability")
-			go func() {
-				if err := collectorService.CollectHistoricalData(1); err != nil {
-					log.Printf("❌ Failed to collect recent data: %v", err)
-				} else {
-					log.Printf("✅ Recent data collection completed")
-				}
-			}()
-		}
+	// Set up Gin router
+	if cfg.Logging.Level != "debug" {
+		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Start the collector service for real-time data collection
-	if err := collectorService.Start(); err != nil {
-		log.Printf("❌ Failed to start collector service: %v", err)
-	} else {
-		log.Printf("✅ Data collector started (interval: %v)", cfg.Collection.Interval)
-	}
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
 
-	// Start automatic pattern detection service
-	patternService.StartPeriodicPatternDetection()
-	log.Printf("✅ Automatic pattern detection started")
+	// CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, X-CSRF-Token")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
-	// Run initial pattern detection for all watched symbols
-	go func() {
-		log.Printf("🔍 Running initial pattern detection for all symbols...")
-		if err := patternService.AutoDetectPatternsForAllSymbols(); err != nil {
-			log.Printf("❌ Initial pattern detection failed: %v", err)
-		} else {
-			log.Printf("✅ Initial pattern detection completed")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
 		}
-	}()
 
-	// Setup Gin router
-	router := gin.Default()
+		c.Next()
+	})
 
 	// Load HTML templates
 	router.LoadHTMLGlob("web/templates/*")
 
-	// Static files
-	router.Static("/static", "./web/static")
+	// Add middleware to disable caching for static files in development
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/static/") {
+			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+			c.Header("Pragma", "no-cache")
+			c.Header("Expires", "0")
+		}
+		c.Next()
+	})
 
-	// Health check endpoint
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "market-watch-go",
-			"polygon": "connected",
-			"config":  "configs/config.yaml",
+	// Static files with no-cache headers for development
+	router.Static("/static", "web/static")
+
+	// Dashboard routes
+	router.GET("/", dashboardHandler.Index)
+
+	// Pattern Watcher page
+	router.GET("/pattern-watcher", func(c *gin.Context) {
+		c.HTML(200, "pattern-watcher.html", gin.H{
+			"title": "Pattern Watcher",
 		})
 	})
 
 	// API routes
 	api := router.Group("/api")
 	{
-		// API Documentation endpoint
-		api.GET("/docs", func(c *gin.Context) {
-			dataCount, _ := db.GetPriceDataCount()
+		// Health check
+		api.GET("/health", volumeHandler.HealthCheck)
 
-			c.JSON(http.StatusOK, gin.H{
-				"message":       "🚀 Market Watch API with Polygon.io",
-				"version":       "1.0.0",
-				"status":        "Operational",
-				"config_source": "configs/config.yaml",
-				"data_points":   dataCount,
-				"features": []string{
-					"📈 Real-time data from Polygon.io API",
-					"🎯 Technical Analysis with custom indicators",
-					"💡 Support/Resistance Detection (100-point scoring)",
-					"✅ Trading Setup Detection (20-item checklist)",
-					"⚡ Automated data collection & analysis",
-					"🖥️ Interactive TradingView-style dashboard",
-				},
-				"polygon_integration": gin.H{
-					"status":   "active",
-					"api_url":  cfg.Polygon.BaseURL,
-					"symbols":  cfg.Collection.Symbols,
-					"interval": cfg.Collection.Interval.String(),
-				},
-				"database": gin.H{
-					"path":            cfg.Database.Path,
-					"max_connections": cfg.Database.MaxOpenConns,
-				},
-				"ui": gin.H{
-					"dashboard": "/",
-					"features": []string{
-						"Real-time TradingView-style charts with D3.js",
-						"Professional dark theme matching TradingView",
-						"Technical indicators visualization",
-						"Trading setups with quality scores",
-						"Support/resistance level analysis",
-						"Data collection monitoring",
-						"Interactive candlestick charts",
-						"Volume analysis with color coding",
-					},
-				},
-				"endpoints": gin.H{
-					"health":              "/health",
-					"dashboard":           "/",
-					"api_docs":            "/api/docs",
-					"indicators":          "/api/indicators/:symbol",
-					"support_resistance":  "/api/support-resistance/:symbol/levels",
-					"setups":              "/api/setups/:symbol",
-					"high_quality_setups": "/api/setups/high-quality",
-					"setup_detection":     "/api/setups/:symbol/detect",
-					"price_chart":         "/api/price/:symbol/chart",
-					"collection_status":   "/api/collection/status",
-					"force_collection":    "POST /api/collection/force",
-					"email_status":        "/api/email/status",
-					"email_test":          "POST /api/email/test",
-					"email_alert":         "POST /api/email/alert",
-				},
-				"examples": gin.H{
-					"view_dashboard":    "GET /",
-					"api_documentation": "GET /api/docs",
-					"get_indicators":    "GET /api/indicators/PLTR",
-					"detect_setups":     "POST /api/setups/PLTR/detect",
-					"get_high_quality":  "GET /api/setups/high-quality",
-					"get_sr_levels":     "GET /api/support-resistance/PLTR/levels",
-					"get_price_chart":   "GET /api/price/PLTR/chart?range=1W",
-					"collection_status": "GET /api/collection/status",
-					"force_collection":  "POST /api/collection/force",
-					"historical_data":   "POST /api/collection/historical/7",
-					"email_status":      "GET /api/email/status",
-					"email_test":        "POST /api/email/test",
-					"email_alert":       "POST /api/email/alert",
-				},
-			})
-		})
+		// Volume data endpoints
+		volume := api.Group("/volume")
+		{
+			volume.GET("/:symbol", volumeHandler.GetVolumeData)
+			volume.GET("/:symbol/latest", volumeHandler.GetLatestVolumeData)
+			volume.GET("/:symbol/chart", volumeHandler.GetChartData)
+		}
 
-		// Technical Analysis routes
-		api.GET("/indicators/:symbol", taHandler.GetIndicators)
-		api.GET("/indicators", taHandler.GetMultipleIndicators)
+		// Price data endpoints for TradingView
+		price := api.Group("/price")
+		{
+			price.GET("/:symbol", priceHandler.GetPriceData)
+			price.GET("/:symbol/latest", priceHandler.GetLatestPriceData)
+			price.GET("/:symbol/chart", priceHandler.GetPriceChartData)
+			price.GET("/:symbol/stats", priceHandler.GetPriceStats)
+		}
 
-		// Support/Resistance routes
-		api.GET("/support-resistance/:symbol/levels", srHandler.GetSupportResistanceLevels)
-		api.POST("/support-resistance/:symbol/detect", srHandler.DetectSupportResistance)
-		api.GET("/support-resistance/:symbol/nearest", srHandler.GetNearestLevels)
-		api.GET("/support-resistance/:symbol/touches", srHandler.GetLevelTouches)
-		api.GET("/support-resistance/:symbol/pivots", srHandler.GetPivotPoints)
-		api.GET("/support-resistance/:symbol/summary", srHandler.GetLevelSummary)
-		api.GET("/support-resistance/levels", srHandler.GetMultipleLevels)
-		api.POST("/support-resistance/cleanup", srHandler.CleanupOldData)
-		api.POST("/support-resistance/deactivate", srHandler.DeactivateOldLevels)
+		// Dashboard endpoints
+		dashboard := api.Group("/dashboard")
+		{
+			dashboard.GET("/summary", volumeHandler.GetDashboardSummary)
+		}
 
-		// Setup Detection routes
-		api.POST("/setups/:symbol/detect", setupHandler.DetectSetups)
-		api.GET("/setups/:symbol", setupHandler.GetSetups)
-		api.GET("/setups/id/:id", setupHandler.GetSetupByID)
-		api.PUT("/setups/id/:id/status", setupHandler.UpdateSetupStatus)
-		api.GET("/setups", setupHandler.GetMultipleSetups)
-		api.GET("/setups/:symbol/summary", setupHandler.GetSetupSummary)
-		api.GET("/setups/high-quality", setupHandler.GetHighQualitySetups)
-		api.POST("/setups/expire", setupHandler.ExpireOldSetups)
-		api.POST("/setups/cleanup", setupHandler.CleanupOldSetups)
-		api.GET("/setups/id/:id/checklist", setupHandler.GetSetupChecklist)
-		api.GET("/setups/stats", setupHandler.GetSetupsStats)
-
-		// Data collection routes
-		api.GET("/collection/status", func(c *gin.Context) {
-			stats := collectorService.GetStats()
-			activeSymbols, _ := db.GetWatchedSymbols() // Get actual symbols from database
-			c.JSON(http.StatusOK, gin.H{
-				"status":              "running",
-				"last_run":            stats.LastRun,
-				"next_run":            stats.NextRun,
-				"successful_runs":     stats.SuccessfulRuns,
-				"failed_runs":         stats.FailedRuns,
-				"collected_today":     stats.CollectedToday,
-				"total_collected":     stats.TotalCollected,
-				"is_running":          stats.IsRunning,
-				"last_error":          stats.LastError,
-				"active_symbols":      activeSymbols,
-				"collection_interval": cfg.Collection.Interval.String(),
-			})
-		})
-
-		api.POST("/collection/force", func(c *gin.Context) {
-			if err := collectorService.ForceCollection(); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error":   "Failed to force collection",
-					"details": err.Error(),
-				})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{
-				"message": "Collection forced successfully",
-			})
-		})
-
-		api.POST("/collection/historical/:days", func(c *gin.Context) {
-			daysStr := c.Param("days")
-			days, err := strconv.Atoi(daysStr)
-			if err != nil || days <= 0 || days > 365 {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "Invalid days parameter (must be 1-365)",
-				})
-				return
-			}
-
-			go func() {
-				if err := collectorService.CollectHistoricalData(days); err != nil {
-					log.Printf("Historical collection failed: %v", err)
-				}
-			}()
-
-			c.JSON(http.StatusOK, gin.H{
-				"message": fmt.Sprintf("Historical data collection started for %d days", days),
-			})
-		})
+		// Collection management endpoints
+		collection := api.Group("/collection")
+		{
+			collection.GET("/status", volumeHandler.GetCollectionStatus)
+			collection.POST("/force", volumeHandler.ForceCollection)
+		}
 
 		// Symbol management endpoints
-		volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
 		api.GET("/symbols", volumeHandler.GetWatchedSymbols)
 		api.POST("/symbols", volumeHandler.AddWatchedSymbol)
 		api.DELETE("/symbols/:symbol", volumeHandler.RemoveWatchedSymbol)
+		api.GET("/symbols/:symbol/check", volumeHandler.CheckSymbolData)
+		api.POST("/symbols/:symbol/collect", volumeHandler.CollectSymbolData)
 
-		// Price chart endpoint with real data from database
-		api.GET("/price/:symbol/chart", func(c *gin.Context) {
-			symbol := c.Param("symbol")
-			rangeParam := c.DefaultQuery("range", "1D")
+		// Debug endpoints
+		debug := api.Group("/debug")
+		{
+			debug.GET("/count", debugHandler.GetDataCount)
+		}
 
-			// Get price data from database
-			var from time.Time
-			to := time.Now()
+		// Technical Analysis endpoints
+		indicators := api.Group("/indicators")
+		{
+			indicators.GET("/:symbol", taHandler.GetIndicators)
+			indicators.GET("/:symbol/summary", taHandler.GetIndicatorsSummary)
+			indicators.GET("/:symbol/historical", taHandler.GetHistoricalIndicators)
+			indicators.POST("/:symbol/update", taHandler.UpdateIndicators)
+			indicators.GET("/:symbol/alerts", taHandler.CheckAlerts)
+			indicators.GET("/:symbol/alerts/active", taHandler.GetActiveAlerts)
+			indicators.POST("/:symbol/cache/invalidate", taHandler.InvalidateSymbolCache)
+		}
 
-			switch rangeParam {
-			case "1D":
-				from = to.AddDate(0, 0, -1)
-			case "1W":
-				from = to.AddDate(0, 0, -7)
-			case "2W":
-				from = to.AddDate(0, 0, -14)
-			case "1M":
-				from = to.AddDate(0, -1, 0)
-			default:
-				from = to.AddDate(0, 0, -1)
-			}
+		technicalAnalysis := api.Group("/technical-analysis")
+		{
+			technicalAnalysis.GET("/indicators", taHandler.GetMultipleIndicators)
+			technicalAnalysis.GET("/stats", taHandler.GetStats)
+			technicalAnalysis.GET("/cache/status", taHandler.GetCacheStatus)
+			technicalAnalysis.POST("/cache/clear", taHandler.ClearCache)
+		}
 
-			priceData, err := db.GetPriceData(&models.PriceDataFilter{
-				Symbol: symbol,
-				From:   from,
-				To:     to,
-				Limit:  1000,
-			})
+		// Setup Detection endpoints
+		setups := api.Group("/setups")
+		{
+			setups.GET("/high-quality", setupHandler.GetHighQualitySetups)
+			setups.GET("/", setupHandler.GetMultipleSetups)
+			setups.POST("/expire", setupHandler.ExpireOldSetups)
+			setups.POST("/cleanup", setupHandler.CleanupOldSetups)
+			setups.GET("/stats", setupHandler.GetSetupsStats)
+			setups.GET("/:symbol", setupHandler.GetSetups)
+			setups.POST("/:symbol/detect", setupHandler.DetectSetups)
+			setups.GET("/:symbol/summary", setupHandler.GetSetupSummary)
+			setups.GET("/id/:id", setupHandler.GetSetupByID)
+			setups.PUT("/id/:id/status", setupHandler.UpdateSetupStatus)
+			setups.GET("/id/:id/checklist", setupHandler.GetSetupChecklist)
+		}
 
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error":   "Failed to get price data",
-					"details": err.Error(),
-				})
-				return
-			}
+		// Support/Resistance endpoints
+		supportResistance := api.Group("/support-resistance")
+		{
+			supportResistance.GET("/levels", srHandler.GetMultipleLevels)
+			supportResistance.POST("/cleanup", srHandler.CleanupOldData)
+			supportResistance.POST("/deactivate", srHandler.DeactivateOldLevels)
+			supportResistance.GET("/:symbol/levels", srHandler.GetSupportResistanceLevels)
+			supportResistance.POST("/:symbol/detect", srHandler.DetectSupportResistance)
+			supportResistance.GET("/:symbol/nearest", srHandler.GetNearestLevels)
+			supportResistance.GET("/:symbol/touches", srHandler.GetLevelTouches)
+			supportResistance.GET("/:symbol/pivots", srHandler.GetPivotPoints)
+			supportResistance.GET("/:symbol/summary", srHandler.GetLevelSummary)
+		}
 
-			c.JSON(http.StatusOK, gin.H{
-				"symbol": symbol,
-				"range":  rangeParam,
-				"data":   priceData,
-				"count":  len(priceData),
-				"from":   from,
-				"to":     to,
-			})
-		})
+		// Unified Patterns API - handles all pattern types
+		patterns := api.Group("/patterns")
+		{
+			patterns.POST("/scan", patternsHandler.ScanAllPatterns)
+			patterns.POST("/scan/:symbol", patternsHandler.ScanSymbolPatterns)
+			patterns.GET("/", patternsHandler.GetAllPatterns)
+			patterns.GET("/:symbol", patternsHandler.GetPatternsBySymbol)
+			patterns.GET("/stats", patternsHandler.GetPatternStatistics)
+		}
 
-		// Email notification routes
-		api.GET("/email/status", emailHandler.GetEmailStatus)
-		api.POST("/email/test", emailHandler.SendTestEmail)
-		api.POST("/email/alert", emailHandler.SendTradingAlert)
-
-		// Head and Shoulders Pattern routes
+		// Head & Shoulders Pattern routes (legacy compatibility)
 		hs := api.Group("/head-shoulders")
 		{
-			// General pattern routes
 			hs.GET("/patterns", hsHandler.GetAllPatterns)
-			hs.POST("/patterns/monitor", hsHandler.MonitorAllPatterns)
 			hs.GET("/patterns/stats", hsHandler.GetPatternStatistics)
-
-			// Symbol-based routes
-			hs.GET("/symbols/:symbol/patterns", hsHandler.GetPatternsBySymbol)
+			hs.POST("/patterns/monitor", hsHandler.MonitorAllPatterns)
+			hs.GET("/patterns/details/:id", hsHandler.GetPatternDetails)
+			hs.GET("/patterns/thesis/:id", hsHandler.GetThesisComponents)
+			hs.GET("/patterns/alerts/:id", hsHandler.GetPatternAlerts)
+			hs.GET("/patterns/performance/:id", hsHandler.GetPatternPerformance)
+			hs.GET("/patterns/symbol/:symbol", hsHandler.GetPatternsBySymbol)
 			hs.POST("/symbols/:symbol/detect", hsHandler.DetectPattern)
-
-			// ID-based routes (using different path structure)
-			hs.GET("/pattern/:id/details", hsHandler.GetPatternDetails)
-			hs.GET("/pattern/:id/thesis", hsHandler.GetThesisComponents)
 			hs.PUT("/pattern/:id/thesis/:component", hsHandler.UpdateThesisComponent)
-			hs.GET("/pattern/:id/alerts", hsHandler.GetPatternAlerts)
-			hs.GET("/pattern/:id/performance", hsHandler.GetPatternPerformance)
+		}
+
+		// Falling Wedge Pattern routes (legacy compatibility)
+		fw := api.Group("/falling-wedge")
+		{
+			fw.GET("/patterns", fallingWedgeHandler.GetPatterns)
+			fw.GET("/patterns/active", fallingWedgeHandler.GetActivePatterns)
+			fw.GET("/patterns/stats", fallingWedgeHandler.GetPatternStatistics)
+			fw.GET("/symbols/:symbol/patterns", fallingWedgeHandler.GetPatternsBySymbol)
+			fw.POST("/symbols/:symbol/detect", fallingWedgeHandler.DetectPattern)
+			fw.GET("/patterns/:id", fallingWedgeHandler.GetPatternDetails)
+			fw.POST("/patterns/scan", fallingWedgeHandler.ScanPatterns)
 		}
 	}
 
-	// Main route - serve the TradingView-style dashboard
-	dashboardHandler := handlers.NewDashboardHandler("web/templates", "web/static", db)
-	router.GET("/", dashboardHandler.Index)
-
-	// Legacy dashboard route (redirect to main)
-	router.GET("/dashboard", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/")
-	})
-
-	// Pattern Watcher page
-	router.GET("/pattern-watcher", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "pattern-watcher.html", gin.H{
-			"title": "Pattern Watcher",
-		})
-	})
-
-	// Legacy route for backward compatibility
-	router.GET("/inverse-head-shoulders", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/pattern-watcher")
-	})
-
 	// Start server
-	port := strconv.Itoa(cfg.Server.Port)
-	log.Printf("🚀 Market Watch server starting on port %s", port)
-	log.Printf("📊 Phase 3 Complete: Advanced Setup Detection & Scoring")
-	log.Printf("📁 Config: configs/config.yaml")
-	log.Printf("🔗 Polygon.io: %s", cfg.Polygon.BaseURL)
-	log.Printf("📊 Database: %s", cfg.Database.Path)
-	log.Printf("📈 Tracked symbols: %v", watchedSymbols)
-	log.Printf("⏰ Collection interval: %v", cfg.Collection.Interval)
-	log.Printf("🎯 DASHBOARD available at: http://localhost:%s", port)
-	log.Printf("📚 API Documentation: http://localhost:%s/api/docs", port)
-	log.Printf("✨ Features: TradingView-style UI + Real-time data + Technical Analysis + S/R Detection + Setup Intelligence")
+	log.Printf("Starting server on %s", cfg.GetAddress())
+	log.Printf("Dashboard available at: http://%s", cfg.GetAddress())
+	log.Printf("Pattern Watcher available at: http://%s/pattern-watcher", cfg.GetAddress())
+	log.Printf("Unified Patterns API available at: http://%s/api/patterns/", cfg.GetAddress())
+	log.Printf("API available at: http://%s/api", cfg.GetAddress())
 
-	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	// Start server in a goroutine
+	go func() {
+		if err := router.Run(cfg.GetAddress()); err != nil {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Printf("Shutting down server...")
+
+	// Stop collector service
+	collectorService.Stop()
+
+	log.Printf("Server shutdown complete")
 }

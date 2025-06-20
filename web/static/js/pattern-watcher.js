@@ -119,54 +119,6 @@ class PatternWatcher {
       .addEventListener("click", () => {
         this.detectPatternsForSelected();
       });
-
-    // Chart overlay toggles
-    document
-      .getElementById("toggle-pattern-overlay")
-      .addEventListener("click", () => {
-        this.togglePatternOverlay();
-      });
-
-    // Note: toggle-moving-averages element doesn't exist in HTML template
-    // Removing this event listener to prevent errors
-    const toggleMovingAverages = document.getElementById("toggle-moving-averages");
-    if (toggleMovingAverages) {
-      toggleMovingAverages.addEventListener("click", () => {
-        this.toggleMovingAverages();
-      });
-    }
-
-    // Thesis panel
-    document
-      .getElementById("thesis-panel-header")
-      .addEventListener("click", () => {
-        this.toggleThesisPanel();
-      });
-
-    // Save buttons
-    document
-      .getElementById("save-component-btn")
-      .addEventListener("click", () => {
-        this.saveComponentUpdate();
-      });
-
-    // Confidence slider
-    document
-      .getElementById("update-confidence")
-      .addEventListener("input", (e) => {
-        document.getElementById("confidence-display").textContent =
-          e.target.value + "%";
-      });
-  }
-
-  setupThesisPanel() {
-    const panel = document.getElementById("thesis-panel");
-    const toggle = document.getElementById("thesis-panel-toggle");
-
-    // Initially collapsed
-    panel.classList.remove("expanded");
-    toggle.classList.add("bi-chevron-up");
-    toggle.classList.remove("bi-chevron-down");
   }
 
   async loadSymbols() {
@@ -222,16 +174,29 @@ class PatternWatcher {
     try {
       console.log("Loading patterns...");
 
-      const response = await fetch("/api/head-shoulders/patterns");
+      // Use unified patterns endpoint
+      const response = await fetch("/api/patterns");
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const patterns = await response.json();
-      console.log(`Loaded ${patterns ? patterns.length : 0} patterns`);
+      const data = await response.json();
+      console.log(`Loaded patterns:`, data);
 
-      this.patterns = patterns || [];
+      // Extract patterns from the unified API response
+      let allPatterns = [];
+      if (data.patterns) {
+        // Combine head_shoulders and falling_wedge patterns
+        if (data.patterns.head_shoulders) {
+          allPatterns = allPatterns.concat(data.patterns.head_shoulders.map(p => ({...p, pattern_type: 'head_shoulders'})));
+        }
+        if (data.patterns.falling_wedge) {
+          allPatterns = allPatterns.concat(data.patterns.falling_wedge.map(p => ({...p, pattern_type: 'falling_wedge'})));
+        }
+      }
+
+      this.patterns = allPatterns;
       this.displayPatterns();
       this.updatePatternCount();
 
@@ -242,6 +207,76 @@ class PatternWatcher {
       this.showError("Failed to load patterns: " + error.message);
       this.patterns = [];
       this.displayNoPatterns();
+    }
+  }
+
+  async scanAllPatterns() {
+    try {
+      this.showLoading("Scanning all symbols for patterns...");
+
+      // Use unified patterns scan endpoint
+      const response = await fetch("/api/patterns/scan", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        this.showSuccess(
+          `Pattern scan completed. ${
+            result.message || "Multiple patterns updated."
+          }`
+        );
+
+        // Refresh patterns after scan
+        setTimeout(() => {
+          this.loadPatterns();
+        }, 2000);
+      } else {
+        throw new Error("Pattern scan failed");
+      }
+    } catch (error) {
+      this.showError("Failed to scan patterns: " + error.message);
+    } finally {
+      this.hideLoading();
+    }
+  }
+
+  async detectPatternsForSelected() {
+    if (!this.selectedSymbol) return;
+
+    try {
+      this.showLoading("Detecting patterns...");
+
+      const response = await fetch(
+        `/api/patterns/scan/${this.selectedSymbol}`,
+        {
+          method: "POST",
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (result.patterns_found > 0) {
+          const patternTypes = [];
+          if (result.head_shoulders_pattern) patternTypes.push("Head & Shoulders");
+          if (result.falling_wedge_pattern) patternTypes.push("Falling Wedge");
+          
+          this.showSuccess(`Pattern(s) detected for ${this.selectedSymbol}: ${patternTypes.join(", ")}`);
+          await this.loadPatterns();
+        } else {
+          this.showInfo(
+            `No patterns found for ${this.selectedSymbol}.`
+          );
+        }
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || "Pattern detection failed");
+      }
+    } catch (error) {
+      this.showError("Failed to detect patterns: " + error.message);
+    } finally {
+      this.hideLoading();
     }
   }
 
@@ -344,12 +379,6 @@ class PatternWatcher {
                                 }</div>
                                 <div>Active</div>
                             </div>
-                            <div class="stat-item">
-                                <div class="stat-value">${this.getAvgCompletion(
-                                  symbolPatterns
-                                )}%</div>
-                                <div>Avg Progress</div>
-                            </div>
                         </div>
                     </div>
                     <div class="symbol-status ${this.getSymbolStatus(
@@ -365,14 +394,10 @@ class PatternWatcher {
       return '<div class="pattern-badges"><span class="pattern-badge">No patterns</span></div>';
     }
 
-    const uniqueTypes = [...new Set(patterns.map((p) => p.pattern_type))];
-    const badges = uniqueTypes
+    const badges = patterns
       .map(
-        (type) =>
-          `<span class="pattern-badge ${type.replace(
-            /_/g,
-            "-"
-          )}">${this.formatPatternType(type)}</span>`
+        (pattern) =>
+          `<span class="pattern-badge falling-wedge">Falling Wedge</span>`
       )
       .join("");
 
@@ -380,316 +405,20 @@ class PatternWatcher {
   }
 
   displayPatterns() {
-    // Since we removed the patterns-list panel, we don't need to display patterns separately
     // Patterns are now integrated into the symbol list display
     console.log(`Loaded ${this.patterns.length} patterns`);
   }
 
   displayNoPatterns() {
-    // No longer needed since patterns are integrated into symbol display
     console.log("No patterns to display");
   }
 
-  createPatternListItem(pattern) {
-    const timeAgo = this.getTimeAgo(new Date(pattern.detected_at));
-    const completionPercent =
-      pattern.thesis_components?.completion_percent || 0;
-    const phaseClass = this.getPhaseClass(pattern.current_phase);
-    const phaseIcon = this.getPhaseIcon(pattern.current_phase);
-
-    return `
-            <div class="pattern-item" data-pattern-id="${
-              pattern.id
-            }" data-symbol="${pattern.symbol}">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <div class="d-flex align-items-center mb-2">
-                            <h6 class="mb-0 pattern-type pattern-type-${pattern.pattern_type.replace(
-                              /_/g,
-                              "-"
-                            )}">${pattern.symbol}</h6>
-                            <span class="badge pattern-phase ${phaseClass} ms-2">
-                                <i class="bi bi-${phaseIcon} me-1"></i>${this.formatPhase(
-      pattern.current_phase
-    )}
-                            </span>
-                        </div>
-                        <div class="small text-muted mb-1">${this.formatPatternType(
-                          pattern.pattern_type
-                        )}</div>
-                        <div class="d-flex justify-content-between text-sm mb-1">
-                            <span class="text-muted">Progress:</span>
-                            <span class="fw-bold text-pw-primary">
-                                ${
-                                  pattern.thesis_components
-                                    ?.completed_components || 0
-                                }/${
-      pattern.thesis_components?.total_components || 0
-    }
-                            </span>
-                        </div>
-                        <div class="pattern-progress">
-                            <div class="pattern-progress-fill" style="width: ${completionPercent}%"></div>
-                        </div>
-                    </div>
-                    <div class="text-end ms-3">
-                        <div class="text-xs text-muted mb-1">${timeAgo}</div>
-                        <div class="pattern-indicators">
-                            ${this.getPatternIndicators(pattern)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-  }
-
-  async selectSymbol(symbol) {
-    console.log(`Selecting symbol ${symbol}`);
-
-    try {
-      // Update selected state in UI
-      document.querySelectorAll(".symbol-item").forEach((item) => {
-        item.classList.remove("selected");
-      });
-      document
-        .querySelector(`[data-symbol="${symbol}"]`)
-        .classList.add("selected");
-
-      // Update header
-      document.getElementById("selected-symbol").textContent = symbol;
-      document.getElementById(
-        "pattern-info"
-      ).textContent = `Ready to analyze patterns for ${symbol}`;
-
-      // Enable detect button
-      document.getElementById("detect-pattern-btn").disabled = false;
-
-      // Load chart
-      this.loadTradingViewChart(symbol);
-
-      // Filter patterns for this symbol
-      this.filterPatternsForSymbol(symbol);
-
-      this.selectedSymbol = symbol;
-    } catch (error) {
-      console.error("Failed to select symbol:", error);
-      this.showError("Failed to select symbol: " + error.message);
-    }
-  }
-
-  async selectPattern(patternId) {
-    console.log(`Selecting pattern ${patternId}`);
-
-    try {
-      const pattern = this.patterns.find((p) => p.id === patternId);
-      if (!pattern) {
-        throw new Error("Pattern not found");
-      }
-
-      // Update selected state in UI
-      document.querySelectorAll(".pattern-item").forEach((item) => {
-        item.classList.remove("selected");
-      });
-      document
-        .querySelector(`[data-pattern-id="${patternId}"]`)
-        .classList.add("selected");
-
-      // Load thesis components
-      this.loadThesisComponents(pattern);
-
-      this.selectedPattern = pattern;
-    } catch (error) {
-      console.error("Failed to select pattern:", error);
-      this.showError("Failed to select pattern: " + error.message);
-    }
-  }
-
-  loadTradingViewChart(symbol) {
-    console.log(`Loading TradingView chart for ${symbol}`);
-
-    const container = document.getElementById("tradingview-widget");
-    if (!container) {
-      console.error("TradingView container not found!");
-      return;
-    }
-
-    // Clear container
-    container.innerHTML = "";
-
-    // Show loading state
-    container.innerHTML = `
-      <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-        <div class="text-center">
-          <div class="loading-spinner me-2"></div>
-          <p>Loading chart for ${symbol}...</p>
-        </div>
-      </div>
-    `;
-
-    // Check if TradingView is available
-    if (typeof TradingView === "undefined") {
-      console.error("TradingView library not loaded!");
-      container.innerHTML = `
-        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-          <div class="text-center">
-            <i class="bi bi-exclamation-triangle display-1 opacity-25"></i>
-            <h5 class="mt-3">TradingView Not Available</h5>
-            <p>Please check your internet connection</p>
-          </div>
-        </div>
-      `;
-      return;
-    }
-
-    try {
-      // Wait a bit for the container to be ready
-      setTimeout(() => {
-        this.createTradingViewWidget(symbol, container);
-      }, 100);
-    } catch (error) {
-      console.error("Failed to load TradingView chart:", error);
-      container.innerHTML = `
-        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-          <div class="text-center">
-            <i class="bi bi-exclamation-triangle display-1 opacity-25"></i>
-            <h5 class="mt-3">Chart Loading Failed</h5>
-            <p>Unable to load chart for ${symbol}</p>
-            <small class="text-danger">${error.message}</small>
-          </div>
-        </div>
-      `;
-    }
-  }
-
-  createTradingViewWidget(
-    symbol,
-    container,
-    fallbackExchanges = ["NASDAQ", "NYSE", "AMEX"]
-  ) {
-    // Get container dimensions
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-
-    console.log(`Trying to load ${symbol}`);
-
-    this.tradingViewWidget = new TradingView.widget({
-      width: containerWidth || "100%",
-      height: containerHeight || 500,
-      symbol: symbol,
-      interval: this.currentTimeframe,
-      timezone: "America/New_York",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      toolbar_bg: "#131722",
-      enable_publishing: false,
-      hide_top_toolbar: false,
-      hide_side_toolbar: false,
-      hide_legend: false,
-      save_image: false,
-      container_id: "tradingview-widget",
-      autosize: true,
-      show_popup_button: true,
-      popup_width: "1000",
-      popup_height: "650",
-      details: true,
-      hotlist: true,
-      calendar: false,
-      show_popup_button: true,
-      studies: [
-        "Volume@tv-basicstudies",
-        "MASimple@tv-basicstudies",
-        "MAExp@tv-basicstudies",
-      ],
-      studies_overrides: {},
-      overrides: {
-        "paneProperties.background": "#131722",
-        "paneProperties.vertGridProperties.color": "#363a45",
-        "paneProperties.horzGridProperties.color": "#363a45",
-        "symbolWatermarkProperties.transparency": 90,
-        "scalesProperties.textColor": "#787b86",
-        "scalesProperties.lineColor": "#363a45",
-      },
-      enabled_features: ["study_templates", "drawing_templates"],
-      onChartReady: () => {
-        console.log(
-          `TradingView widget loaded successfully for ${symbol} on ${this.currentTimeframe} timeframe`
-        );
-      },
-    });
-
-    console.log("TradingView widget created successfully");
-  }
-
-  loadThesisComponents(pattern) {
-    const container = document.getElementById("thesis-content");
-    const thesis = pattern.thesis_components;
-
-    if (!thesis) {
-      container.innerHTML = `
-                <div class="text-center text-muted p-4">
-                    <i class="bi bi-list-check display-4 opacity-25"></i>
-                    <p class="mt-3">No thesis data available for this pattern</p>
-                </div>
-            `;
-      return;
-    }
-
-    // Update thesis panel header
-    document.getElementById("thesis-symbol").textContent = `- ${
-      pattern.symbol
-    } (${this.formatPatternType(pattern.pattern_type)})`;
-    document.getElementById("thesis-progress").style.width = `${
-      thesis.completion_percent || 0
-    }%`;
-    document.getElementById("thesis-completion").textContent = `${
-      thesis.completed_components || 0
-    }/${thesis.total_components || 0}`;
-
-    // Create simplified thesis display
-    container.innerHTML = `
-            <div class="thesis-section">
-                <h6 class="section-title">Pattern Analysis Progress</h6>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span>Pattern Type:</span>
-                        <span class="text-pw-primary">${this.formatPatternType(
-                          pattern.pattern_type
-                        )}</span>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Current Phase:</span>
-                        <span class="text-pw-primary">${this.formatPhase(
-                          pattern.current_phase
-                        )}</span>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Completion:</span>
-                        <span class="text-pw-primary">${
-                          thesis.completion_percent || 0
-                        }%</span>
-                    </div>
-                </div>
-                <div class="pattern-progress">
-                    <div class="pattern-progress-fill" style="width: ${
-                      thesis.completion_percent || 0
-                    }%"></div>
-                </div>
-                <small class="text-muted mt-2 d-block">
-                    Click on individual components to update their status manually
-                </small>
-            </div>
-        `;
-  }
-
-  // Helper methods
   getFilteredSymbols() {
     const searchTerm = document
       .getElementById("symbol-search")
       .value.toLowerCase();
 
     return this.symbols.filter((symbolData) => {
-      // Handle both string symbols and WatchedSymbol objects from API
       const symbol =
         typeof symbolData === "string"
           ? symbolData
@@ -727,18 +456,6 @@ class PatternWatcher {
     });
   }
 
-  getFilteredPatterns() {
-    let filtered = this.patterns;
-
-    if (this.currentFilter !== "all") {
-      filtered = filtered.filter(
-        (pattern) => pattern.pattern_type === this.currentFilter
-      );
-    }
-
-    return filtered;
-  }
-
   filterSymbols(searchTerm = "") {
     this.displaySymbols();
   }
@@ -747,89 +464,99 @@ class PatternWatcher {
     this.displayPatterns();
   }
 
-  filterPatternsForSymbol(symbol) {
-    const symbolPatterns = this.patterns.filter((p) => p.symbol === symbol);
-    // Update pattern display for selected symbol
-    this.displayPatterns();
-  }
-
-  formatPatternType(type) {
-    return type.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  }
-
-  formatPhase(phase) {
-    return phase.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  }
-
-  getPhaseClass(phase) {
-    switch (phase) {
-      case "formation":
-        return "formation";
-      case "breakout":
-        return "breakout";
-      case "target_pursuit":
-        return "target_pursuit";
-      case "completed":
-        return "completed";
-      default:
-        return "formation";
-    }
-  }
-
-  getPhaseIcon(phase) {
-    switch (phase) {
-      case "formation":
-        return "diagram-3";
-      case "breakout":
-        return "arrow-up-circle";
-      case "target_pursuit":
-        return "bullseye";
-      case "completed":
-        return "check-circle";
-      default:
-        return "diagram-3";
-    }
-  }
-
-  getPatternIndicators(pattern) {
-    // Simplified indicators
-    return `
-            <i class="bi bi-graph-up text-info" title="Pattern Detected"></i>
-            <i class="bi bi-clock text-muted" title="In Progress"></i>
-        `;
-  }
-
   getSymbolStatus(patterns) {
     if (patterns.length === 0) return "no-patterns";
     if (patterns.some((p) => !p.is_complete)) return "patterns-found";
     return "patterns-found";
   }
 
-  getAvgCompletion(patterns) {
-    if (patterns.length === 0) return 0;
-    const total = patterns.reduce(
-      (sum, p) => sum + (p.thesis_components?.completion_percent || 0),
-      0
-    );
-    return Math.round(total / patterns.length);
-  }
+  async selectSymbol(symbol) {
+    console.log(`Selecting symbol ${symbol}`);
 
-  getTimeAgo(date) {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
+    try {
+      // Update selected state in UI
+      document.querySelectorAll(".symbol-item").forEach((item) => {
+        item.classList.remove("selected");
+      });
+      document
+        .querySelector(`[data-symbol="${symbol}"]`)
+        .classList.add("selected");
 
-    if (diffDays > 0) {
-      return `${diffDays}d ago`;
-    } else if (diffHours > 0) {
-      return `${diffHours}h ago`;
-    } else {
-      return "Recent";
+      // Update header
+      document.getElementById("selected-symbol").textContent = symbol;
+      document.getElementById(
+        "pattern-info"
+      ).textContent = `Ready to analyze patterns for ${symbol}`;
+
+      // Enable detect button
+      document.getElementById("detect-pattern-btn").disabled = false;
+
+      // Load chart for selected symbol
+      this.loadTradingViewChart(symbol);
+
+      this.selectedSymbol = symbol;
+    } catch (error) {
+      console.error("Failed to select symbol:", error);
+      this.showError("Failed to select symbol: " + error.message);
     }
   }
 
-  // Action methods
+  loadTradingViewChart(symbol) {
+    console.log(`Loading TradingView chart for ${symbol}`);
+
+    const container = document.getElementById("tradingview-widget");
+    if (!container) {
+      console.error("TradingView widget container not found");
+      return;
+    }
+
+    try {
+      // Clear existing widget
+      if (this.tradingViewWidget) {
+        this.tradingViewWidget.remove();
+      }
+
+      // Create new TradingView widget
+      this.tradingViewWidget = new TradingView.widget({
+        width: "100%",
+        height: "100%",
+        symbol: symbol,
+        interval: this.currentTimeframe,
+        timezone: "Etc/UTC",
+        theme: "dark",
+        style: "1",
+        locale: "en",
+        toolbar_bg: "#f1f3f6",
+        enable_publishing: false,
+        hide_top_toolbar: false,
+        hide_legend: false,
+        save_image: false,
+        container_id: "tradingview-widget",
+        studies: [
+          "Volume@tv-basicstudies",
+          "RSI@tv-basicstudies",
+          "MACD@tv-basicstudies"
+        ],
+        onChartReady: () => {
+          console.log(
+            `TradingView widget loaded successfully for ${symbol} on ${this.currentTimeframe} timeframe`
+          );
+        }
+      });
+    } catch (error) {
+      console.error("Failed to load TradingView chart:", error);
+      container.innerHTML = `
+        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+          <div class="text-center">
+            <i class="bi bi-exclamation-triangle display-1 opacity-25"></i>
+            <h5 class="mt-3">Chart Loading Failed</h5>
+            <p>Unable to load chart for ${symbol}</p>
+            <small class="text-danger">${error.message}</small>
+          </div>
+        </div>
+      `;
+    }
+  }
 
   async removeSymbol(symbol) {
     if (!symbol) return;
@@ -850,20 +577,6 @@ class PatternWatcher {
           document.getElementById("selected-symbol").textContent = "Select a symbol to view chart";
           document.getElementById("pattern-info").textContent = "No symbol selected";
           document.getElementById("detect-pattern-btn").disabled = true;
-          
-          // Clear the chart
-          const container = document.getElementById("tradingview-widget");
-          if (container) {
-            container.innerHTML = `
-              <div class="d-flex align-items-center justify-content-center h-100 text-muted">
-                <div class="text-center">
-                  <i class="bi bi-graph-up-arrow display-1 opacity-25"></i>
-                  <h4 class="mt-3">Select a Symbol</h4>
-                  <p>Choose a symbol from the watchlist to view its chart and patterns</p>
-                </div>
-              </div>
-            `;
-          }
         }
 
         // Refresh the symbols list
@@ -918,109 +631,14 @@ class PatternWatcher {
     }
   }
 
-  async scanAllPatterns() {
-    try {
-      this.showLoading("Scanning all symbols for patterns...");
-
-      // Trigger pattern detection for all symbols
-      const response = await fetch("/api/head-shoulders/patterns/monitor", {
-        method: "POST",
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        this.showSuccess(
-          `Pattern scan completed. ${
-            result.patterns_updated || "Multiple"
-          } patterns updated.`
-        );
-
-        // Refresh patterns after scan
-        setTimeout(() => {
-          this.loadPatterns();
-        }, 2000);
-      } else {
-        throw new Error("Pattern scan failed");
-      }
-    } catch (error) {
-      this.showError("Failed to scan patterns: " + error.message);
-    } finally {
-      this.hideLoading();
-    }
-  }
-
-  async detectPatternsForSelected() {
-    if (!this.selectedSymbol) return;
-
-    try {
-      this.showLoading("Detecting patterns...");
-
-      const response = await fetch(
-        `/api/head-shoulders/symbols/${this.selectedSymbol}/detect`,
-        {
-          method: "POST",
-        }
-      );
-
-      if (response.ok) {
-        const result = await response.json();
-
-        if (result.status === "pattern_detected") {
-          this.showSuccess(`Pattern detected for ${this.selectedSymbol}!`);
-          await this.loadPatterns();
-        } else if (result.status === "no_pattern") {
-          this.showInfo(
-            `No patterns found for ${this.selectedSymbol}. ${result.message}`
-          );
-        } else {
-          this.showSuccess(
-            `Pattern detection completed for ${this.selectedSymbol}`
-          );
-          await this.loadPatterns();
-        }
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || "Pattern detection failed");
-      }
-    } catch (error) {
-      this.showError("Failed to detect patterns: " + error.message);
-    } finally {
-      this.hideLoading();
-    }
-  }
-
-  togglePatternOverlay() {
-    const overlay = document.getElementById("pattern-overlay");
-    const btn = document.getElementById("toggle-pattern-overlay");
-
-    if (overlay.classList.contains("d-none")) {
-      overlay.classList.remove("d-none");
-      btn.innerHTML = '<i class="bi bi-eye-slash"></i> Patterns';
-    } else {
-      overlay.classList.add("d-none");
-      btn.innerHTML = '<i class="bi bi-eye"></i> Patterns';
-    }
-  }
-
-  toggleMovingAverages() {
-    // Placeholder method for moving averages toggle
-    // This functionality can be implemented later if needed
-    console.log("Moving averages toggle not implemented yet");
-  }
-
-  toggleThesisPanel() {
+  setupThesisPanel() {
     const panel = document.getElementById("thesis-panel");
     const toggle = document.getElementById("thesis-panel-toggle");
 
-    if (panel.classList.contains("expanded")) {
-      panel.classList.remove("expanded");
-      toggle.classList.add("bi-chevron-up");
-      toggle.classList.remove("bi-chevron-down");
-    } else {
-      panel.classList.add("expanded");
-      toggle.classList.remove("bi-chevron-up");
-      toggle.classList.add("bi-chevron-down");
-    }
+    // Initially collapsed
+    panel.classList.remove("expanded");
+    toggle.classList.add("bi-chevron-up");
+    toggle.classList.remove("bi-chevron-down");
   }
 
   updateSymbolCount() {
@@ -1029,7 +647,6 @@ class PatternWatcher {
 
   updatePatternCount() {
     // Pattern count is no longer displayed separately since we removed the patterns panel
-    // Pattern information is now integrated into the symbol list
     console.log(`Total patterns: ${this.patterns.length}`);
   }
 
@@ -1069,7 +686,6 @@ class PatternWatcher {
   }
 
   showLoading(message = "Loading...") {
-    // TODO: Show loading indicator
     console.log(message);
   }
 
@@ -1117,63 +733,6 @@ class PatternWatcher {
     toast.addEventListener("hidden.bs.toast", () => {
       toast.remove();
     });
-  }
-
-
-  async saveComponentUpdate() {
-    const patternId = document.getElementById("update-pattern-id").value;
-    const componentName = document.getElementById(
-      "update-component-name"
-    ).value;
-    const isCompleted = document.getElementById("update-is-completed").checked;
-    const confidenceLevel = document.getElementById("update-confidence").value;
-    const evidence = document
-      .getElementById("update-evidence")
-      .value.split("\n")
-      .filter((line) => line.trim());
-    const notes = document.getElementById("update-notes").value;
-
-    if (!patternId || !componentName) {
-      this.showError("Missing pattern ID or component name");
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/head-shoulders/pattern/${patternId}/thesis/${componentName}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            is_completed: isCompleted,
-            confidence_level: parseFloat(confidenceLevel),
-            evidence: evidence,
-            notes: notes,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        const result = await response.json();
-        this.showSuccess(`Component "${componentName}" updated successfully`);
-
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(
-          document.getElementById("component-update-modal")
-        );
-        if (modal) modal.hide();
-
-        // Refresh pattern details if this pattern is selected
-        if (this.selectedPattern && this.selectedPattern.id == patternId) {
-          this.loadThesisComponents(this.selectedPattern);
-        }
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to update component");
-      }
-    } catch (error) {
-      this.showError("Failed to update component: " + error.message);
-    }
   }
 }
 
