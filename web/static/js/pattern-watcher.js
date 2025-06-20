@@ -18,13 +18,29 @@ class PatternWatcher {
   async init() {
     console.log("Initializing Pattern Watcher...");
 
-    this.setupEventListeners();
-    this.setupThesisPanel();
-    await this.loadSymbols();
-    await this.loadPatterns();
-    this.startAutoRefresh();
+    try {
+      this.setupEventListeners();
+      this.setupThesisPanel();
+      
+      // Load symbols first
+      console.log("Loading symbols during initialization...");
+      await this.loadSymbols();
+      
+      // Load patterns
+      console.log("Loading patterns during initialization...");
+      await this.loadPatterns();
+      
+      // Start auto-refresh
+      this.startAutoRefresh();
 
-    console.log("Pattern Watcher initialized");
+      console.log("Pattern Watcher initialized successfully");
+    } catch (error) {
+      console.error("Failed to initialize Pattern Watcher:", error);
+      this.showError("Failed to initialize Pattern Watcher: " + error.message);
+      
+      // Ensure UI is in a proper state even if initialization fails
+      this.displayNoSymbols();
+    }
   }
 
   setupEventListeners() {
@@ -55,7 +71,7 @@ class PatternWatcher {
 
     // Add symbol
     document.getElementById("add-symbol-btn").addEventListener("click", () => {
-      this.showAddSymbolModal();
+      this.quickAddSymbol();
     });
 
     document
@@ -78,8 +94,18 @@ class PatternWatcher {
     // Control buttons
     document
       .getElementById("refresh-symbols-btn")
-      .addEventListener("click", () => {
-        this.loadSymbols();
+      .addEventListener("click", async () => {
+        console.log("Refresh Data button clicked");
+        try {
+          // Force reload of both symbols and patterns
+          this.isLoading = false; // Reset loading flag in case it's stuck
+          await this.loadSymbols();
+          await this.loadPatterns();
+          this.showSuccess("Data refreshed successfully");
+        } catch (error) {
+          console.error("Failed to refresh data:", error);
+          this.showError("Failed to refresh data: " + error.message);
+        }
       });
 
     document
@@ -101,11 +127,14 @@ class PatternWatcher {
         this.togglePatternOverlay();
       });
 
-    document
-      .getElementById("toggle-moving-averages")
-      .addEventListener("click", () => {
+    // Note: toggle-moving-averages element doesn't exist in HTML template
+    // Removing this event listener to prevent errors
+    const toggleMovingAverages = document.getElementById("toggle-moving-averages");
+    if (toggleMovingAverages) {
+      toggleMovingAverages.addEventListener("click", () => {
         this.toggleMovingAverages();
       });
+    }
 
     // Thesis panel
     document
@@ -115,10 +144,6 @@ class PatternWatcher {
       });
 
     // Save buttons
-    document.getElementById("save-symbol-btn").addEventListener("click", () => {
-      this.saveSymbol();
-    });
-
     document
       .getElementById("save-component-btn")
       .addEventListener("click", () => {
@@ -145,7 +170,10 @@ class PatternWatcher {
   }
 
   async loadSymbols() {
-    if (this.isLoading) return;
+    if (this.isLoading) {
+      console.log("Already loading symbols, skipping...");
+      return;
+    }
 
     this.isLoading = true;
     this.showSymbolsLoading();
@@ -154,20 +182,31 @@ class PatternWatcher {
       console.log("Loading symbols...");
 
       // Get watched symbols from the existing API
-      const response = await fetch("/api/symbols");
+      const response = await fetch("/api/symbols", {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "Cache-Control": "no-cache"
+        }
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log("Symbols API response:", data);
       console.log(
         `Loaded ${data && data.symbols ? data.symbols.length : 0} symbols`
       );
 
       this.symbols = data && data.symbols ? data.symbols : [];
+      
+      // Always call displaySymbols, which will handle empty state appropriately
       this.displaySymbols();
       this.updateSymbolCount();
+      
+      console.log("Symbols loaded and displayed successfully");
     } catch (error) {
       console.error("Failed to load symbols:", error);
       this.showError("Failed to load symbols: " + error.message);
@@ -175,6 +214,7 @@ class PatternWatcher {
       this.displayNoSymbols();
     } finally {
       this.isLoading = false;
+      console.log("loadSymbols completed, isLoading:", this.isLoading);
     }
   }
 
@@ -219,11 +259,24 @@ class PatternWatcher {
       .map((symbol) => this.createSymbolListItem(symbol))
       .join("");
 
-    // Add click handlers
+    // Add click handlers for symbol selection
     container.querySelectorAll(".symbol-item").forEach((item) => {
-      item.addEventListener("click", () => {
+      item.addEventListener("click", (e) => {
+        // Don't select symbol if clicking on remove button
+        if (e.target.closest('.remove-symbol-btn')) {
+          return;
+        }
         const symbol = item.dataset.symbol;
         this.selectSymbol(symbol);
+      });
+    });
+
+    // Add click handlers for remove buttons
+    container.querySelectorAll(".remove-symbol-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation(); // Prevent symbol selection
+        const symbol = btn.dataset.symbol;
+        this.removeSymbol(symbol);
       });
     });
   }
@@ -234,23 +287,26 @@ class PatternWatcher {
             <div class="text-center p-4 text-muted">
                 <i class="bi bi-list-ul display-4 opacity-25"></i>
                 <p class="mt-3">No symbols in watchlist</p>
-                <button class="btn btn-primary btn-sm" onclick="window.patternWatcher.showAddSymbolModal()">
-                    <i class="bi bi-plus"></i> Add Symbol
-                </button>
+                <p class="small text-muted">Use the input field above to add symbols or click "Refresh Data" to reload from server</p>
             </div>
         `;
   }
 
   createSymbolListItem(symbolData) {
-    // Handle both string symbols and symbol objects
+    // Handle both string symbols and WatchedSymbol objects from API
     const symbol =
       typeof symbolData === "string"
         ? symbolData
-        : symbolData.symbol || symbolData.Symbol;
+        : symbolData.symbol || symbolData.Symbol || "";
     const symbolName =
       typeof symbolData === "object"
         ? symbolData.name || symbolData.Name || ""
         : "";
+
+    if (!symbol) {
+      console.warn("Invalid symbol data:", symbolData);
+      return "";
+    }
 
     const symbolPatterns = this.patterns.filter((p) => p.symbol === symbol);
     const patternBadges = this.createPatternBadges(symbolPatterns);
@@ -259,7 +315,15 @@ class PatternWatcher {
             <div class="symbol-item" data-symbol="${symbol}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <div class="symbol-name">${symbol}</div>
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="symbol-name">${symbol}</div>
+                            <button class="btn btn-sm text-danger p-0 ms-2 remove-symbol-btn"
+                                    data-symbol="${symbol}"
+                                    title="Remove ${symbol} from watchlist"
+                                    style="line-height: 1; font-size: 12px;">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                         ${
                           symbolName
                             ? `<div class="text-muted small">${symbolName}</div>`
@@ -625,14 +689,19 @@ class PatternWatcher {
       .value.toLowerCase();
 
     return this.symbols.filter((symbolData) => {
-      // Handle both string symbols and symbol objects
+      // Handle both string symbols and WatchedSymbol objects from API
       const symbol =
         typeof symbolData === "string"
           ? symbolData
-          : symbolData.symbol || symbolData.Symbol;
+          : symbolData.symbol || symbolData.Symbol || "";
+
+      if (!symbol) {
+        console.warn("Invalid symbol data in filter:", symbolData);
+        return false;
+      }
 
       // Check search term match
-      const matchesSearch = symbol && symbol.toLowerCase().includes(searchTerm);
+      const matchesSearch = symbol.toLowerCase().includes(searchTerm);
 
       // Check watchlist filter
       const symbolPatterns = this.patterns.filter((p) => p.symbol === symbol);
@@ -761,26 +830,56 @@ class PatternWatcher {
   }
 
   // Action methods
-  showAddSymbolModal() {
-    const modal = new bootstrap.Modal(
-      document.getElementById("add-symbol-modal")
-    );
 
-    // Pre-fill the modal input if there's text in the quick add input
-    const quickAddInput = document.getElementById("add-symbol-input");
-    const modalInput = document.getElementById("symbol-input");
+  async removeSymbol(symbol) {
+    if (!symbol) return;
 
-    if (quickAddInput.value.trim()) {
-      modalInput.value = quickAddInput.value.trim().toUpperCase();
-      quickAddInput.value = ""; // Clear quick add input
+    try {
+      this.showLoading(`Removing ${symbol} from watchlist...`);
+
+      const response = await fetch(`/api/symbols/${symbol}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        this.showSuccess(`Symbol ${symbol} removed from watchlist`);
+        
+        // If the removed symbol was selected, clear the selection
+        if (this.selectedSymbol === symbol) {
+          this.selectedSymbol = null;
+          document.getElementById("selected-symbol").textContent = "Select a symbol to view chart";
+          document.getElementById("pattern-info").textContent = "No symbol selected";
+          document.getElementById("detect-pattern-btn").disabled = true;
+          
+          // Clear the chart
+          const container = document.getElementById("tradingview-widget");
+          if (container) {
+            container.innerHTML = `
+              <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                <div class="text-center">
+                  <i class="bi bi-graph-up-arrow display-1 opacity-25"></i>
+                  <h4 class="mt-3">Select a Symbol</h4>
+                  <p>Choose a symbol from the watchlist to view its chart and patterns</p>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        // Refresh the symbols list
+        await this.loadSymbols();
+        
+        // Also refresh patterns to remove any patterns for this symbol
+        await this.loadPatterns();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to remove symbol");
+      }
+    } catch (error) {
+      this.showError("Failed to remove symbol: " + error.message);
+    } finally {
+      this.hideLoading();
     }
-
-    modal.show();
-
-    // Focus on the input field when modal opens
-    setTimeout(() => {
-      modalInput.focus();
-    }, 300);
   }
 
   async quickAddSymbol() {
@@ -903,6 +1002,12 @@ class PatternWatcher {
     }
   }
 
+  toggleMovingAverages() {
+    // Placeholder method for moving averages toggle
+    // This functionality can be implemented later if needed
+    console.log("Moving averages toggle not implemented yet");
+  }
+
   toggleThesisPanel() {
     const panel = document.getElementById("thesis-panel");
     const toggle = document.getElementById("thesis-panel-toggle");
@@ -935,6 +1040,22 @@ class PatternWatcher {
       this.loadSymbols();
       this.loadPatterns();
     }, 5 * 60 * 1000);
+
+    // Also schedule a retry in case initial load failed
+    setTimeout(() => {
+      if (this.symbols.length === 0) {
+        console.log("No symbols loaded after 5 seconds, retrying...");
+        this.loadSymbols();
+      }
+    }, 5000);
+
+    // And another retry after 15 seconds in case the server is still starting up
+    setTimeout(() => {
+      if (this.symbols.length === 0) {
+        console.log("No symbols loaded after 15 seconds, retrying...");
+        this.loadSymbols();
+      }
+    }, 15000);
   }
 
   // UI helper methods
@@ -998,48 +1119,6 @@ class PatternWatcher {
     });
   }
 
-  // Add symbol to watchlist
-  async saveSymbol() {
-    const symbolInput = document.getElementById("symbol-input");
-    const symbol = symbolInput.value.trim().toUpperCase();
-
-    if (!symbol) {
-      this.showError("Please enter a symbol");
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/symbols", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol: symbol }),
-      });
-
-      if (response.ok) {
-        this.showSuccess(
-          `Symbol ${symbol} added to watchlist. Automatic pattern detection started.`
-        );
-        symbolInput.value = "";
-
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(
-          document.getElementById("add-symbol-modal")
-        );
-        if (modal) modal.hide();
-
-        // Refresh symbols list and trigger pattern detection
-        await this.loadSymbols();
-        setTimeout(() => {
-          this.loadPatterns();
-        }, 3000);
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to add symbol");
-      }
-    } catch (error) {
-      this.showError("Failed to add symbol: " + error.message);
-    }
-  }
 
   async saveComponentUpdate() {
     const patternId = document.getElementById("update-pattern-id").value;
