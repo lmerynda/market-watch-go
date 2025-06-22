@@ -68,6 +68,12 @@ func New(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize falling wedge pattern tables: %w", err)
 	}
 
+	// Initialize watchlist tables
+	if err := db.CreateWatchlistTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize watchlist tables: %w", err)
+	}
+
 	log.Printf("Database initialized at %s", cfg.Database.Path)
 	return db, nil
 }

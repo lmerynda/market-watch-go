@@ -123,6 +123,7 @@ func main() {
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	fallingWedgeHandler := handlers.NewFallingWedgeHandler(db, fallingWedgeService)
 	patternsHandler := handlers.NewPatternsHandler(db, patternService, hsService, fallingWedgeService)
+	watchlistHandler := handlers.NewWatchlistHandler(db)
 
 	// Set up Gin router
 	if cfg.Logging.Level != "debug" {
@@ -173,6 +174,9 @@ func main() {
 			"title": "Pattern Watcher",
 		})
 	})
+
+	// Watchlist page
+	router.GET("/watchlist", watchlistHandler.RenderWatchlistPage)
 
 	// API routes
 	api := router.Group("/api")
@@ -295,6 +299,25 @@ func main() {
 			fw.POST("/symbols/:symbol/detect", fallingWedgeHandler.DetectPattern)
 			fw.GET("/patterns/:id", fallingWedgeHandler.GetPatternDetails)
 			fw.POST("/patterns/scan", fallingWedgeHandler.ScanPatterns)
+		}
+
+		// Watchlist routes
+		watchlist := api.Group("/watchlist")
+		{
+			// Categories
+			watchlist.GET("/categories", watchlistHandler.GetCategories)
+			watchlist.POST("/categories", watchlistHandler.CreateCategory)
+			watchlist.PUT("/categories/:id", watchlistHandler.UpdateCategory)
+			watchlist.DELETE("/categories/:id", watchlistHandler.DeleteCategory)
+
+			// Stocks
+			watchlist.GET("/stocks", watchlistHandler.GetStocks)
+			watchlist.POST("/stocks", watchlistHandler.AddStock)
+			watchlist.PUT("/stocks/:id", watchlistHandler.UpdateStock)
+			watchlist.DELETE("/stocks/:id", watchlistHandler.DeleteStock)
+
+			// Summary
+			watchlist.GET("/summary", watchlistHandler.GetSummary)
 		}
 	}
 
