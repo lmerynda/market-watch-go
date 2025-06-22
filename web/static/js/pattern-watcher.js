@@ -20,7 +20,6 @@ class PatternWatcher {
 
     try {
       this.setupEventListeners();
-      this.setupThesisPanel();
       
       // Load symbols first
       console.log("Loading symbols during initialization...");
@@ -494,6 +493,9 @@ class PatternWatcher {
       // Load chart for selected symbol
       this.loadTradingViewChart(symbol);
 
+      // Update thesis tracker with patterns for this symbol
+      this.updateThesisTracker(symbol);
+
       this.selectedSymbol = symbol;
     } catch (error) {
       console.error("Failed to select symbol:", error);
@@ -577,6 +579,9 @@ class PatternWatcher {
           document.getElementById("selected-symbol").textContent = "Select a symbol to view chart";
           document.getElementById("pattern-info").textContent = "No symbol selected";
           document.getElementById("detect-pattern-btn").disabled = true;
+          
+          // Clear thesis tracker
+          this.clearThesisTracker();
         }
 
         // Refresh the symbols list
@@ -631,14 +636,169 @@ class PatternWatcher {
     }
   }
 
-  setupThesisPanel() {
-    const panel = document.getElementById("thesis-panel");
-    const toggle = document.getElementById("thesis-panel-toggle");
 
-    // Initially collapsed
-    panel.classList.remove("expanded");
-    toggle.classList.add("bi-chevron-up");
-    toggle.classList.remove("bi-chevron-down");
+  updateThesisTracker(symbol) {
+    console.log(`Updating thesis tracker for ${symbol}`);
+    
+    // Find patterns for this symbol
+    const symbolPatterns = this.patterns.filter((p) => p.symbol === symbol);
+    
+    // Update thesis tracker header
+    document.getElementById("thesis-symbol").textContent =
+      symbolPatterns.length > 0 ? `${symbol} (${symbolPatterns.length} patterns)` : `${symbol} (No patterns)`;
+    
+    // Update progress indicator
+    if (symbolPatterns.length > 0) {
+      const totalComponents = symbolPatterns.reduce((sum, p) =>
+        sum + (p.thesis_components?.total_components || 0), 0);
+      const completedComponents = symbolPatterns.reduce((sum, p) =>
+        sum + (p.thesis_components?.completed_components || 0), 0);
+      
+      const progressPercent = totalComponents > 0 ? Math.round((completedComponents / totalComponents) * 100) : 0;
+      
+      document.getElementById("thesis-progress").style.width = `${progressPercent}%`;
+      document.getElementById("thesis-completion").textContent = `${completedComponents}/${totalComponents}`;
+    } else {
+      document.getElementById("thesis-progress").style.width = "0%";
+      document.getElementById("thesis-completion").textContent = "0/0";
+    }
+    
+    // Update thesis content
+    this.displayThesisContent(symbolPatterns);
+  }
+
+  displayThesisContent(patterns) {
+    const container = document.getElementById("thesis-content");
+    
+    if (patterns.length === 0) {
+      container.innerHTML = `
+        <div class="text-center text-muted p-3">
+          <i class="bi bi-list-check opacity-25"></i>
+          <p class="mt-2 small">No patterns detected</p>
+          <small>Use "Detect" to scan for patterns</small>
+        </div>
+      `;
+      return;
+    }
+
+    // Group patterns by type
+    const patternsByType = {};
+    patterns.forEach(pattern => {
+      const type = pattern.pattern_type || 'unknown';
+      if (!patternsByType[type]) {
+        patternsByType[type] = [];
+      }
+      patternsByType[type].push(pattern);
+    });
+
+    // Create content for each pattern type
+    let html = '';
+    Object.keys(patternsByType).forEach(type => {
+      html += this.createPatternTypeSection(type, patternsByType[type]);
+    });
+
+    container.innerHTML = html;
+  }
+
+  createPatternTypeSection(patternType, patterns) {
+    const typeLabel = this.formatPatternType(patternType);
+    const typeIcon = this.getPatternTypeIcon(patternType);
+    
+    let sectionHtml = `
+      <div class="thesis-pattern-type mb-3">
+        <h6 class="small mb-2">
+          <i class="bi bi-${typeIcon} me-1"></i>${typeLabel}
+        </h6>
+    `;
+
+    patterns.forEach(pattern => {
+      sectionHtml += this.createPatternThesisItem(pattern);
+    });
+
+    sectionHtml += '</div>';
+    return sectionHtml;
+  }
+
+  createPatternThesisItem(pattern) {
+    const thesis = pattern.thesis_components;
+    if (!thesis) {
+      return `
+        <div class="thesis-item mb-2 p-2 border rounded">
+          <small class="text-muted">No thesis data available</small>
+        </div>
+      `;
+    }
+
+    const progressPercent = thesis.completion_percent || 0;
+    const phase = pattern.current_phase || 'unknown';
+    const phaseClass = this.getPhaseClass(phase);
+    
+    return `
+      <div class="thesis-item mb-2 p-2 border rounded">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <small class="fw-bold">${this.formatPhase(phase)}</small>
+          <span class="badge badge-sm ${phaseClass}">${progressPercent}%</span>
+        </div>
+        <div class="progress mb-1" style="height: 3px;">
+          <div class="progress-bar" style="width: ${progressPercent}%"></div>
+        </div>
+        <small class="text-muted">
+          ${thesis.completed_components || 0}/${thesis.total_components || 0} components
+        </small>
+      </div>
+    `;
+  }
+
+  formatPatternType(patternType) {
+    switch (patternType) {
+      case 'head_shoulders': return 'Head & Shoulders';
+      case 'falling_wedge': return 'Falling Wedge';
+      case 'cup_handle': return 'Cup & Handle';
+      default: return patternType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+  }
+
+  getPatternTypeIcon(patternType) {
+    switch (patternType) {
+      case 'head_shoulders': return 'graph-up-arrow';
+      case 'falling_wedge': return 'graph-down-arrow';
+      case 'cup_handle': return 'cup';
+      default: return 'graph-up';
+    }
+  }
+
+  getPhaseClass(phase) {
+    switch (phase) {
+      case 'formation': return 'bg-warning';
+      case 'breakout': return 'bg-info';
+      case 'target_pursuit': return 'bg-primary';
+      case 'completed': return 'bg-success';
+      default: return 'bg-secondary';
+    }
+  }
+
+  formatPhase(phase) {
+    switch (phase) {
+      case 'formation': return 'Formation';
+      case 'breakout': return 'Breakout';
+      case 'target_pursuit': return 'Target Pursuit';
+      case 'completed': return 'Completed';
+      default: return phase;
+    }
+  }
+
+  clearThesisTracker() {
+    document.getElementById("thesis-symbol").textContent = "No pattern selected";
+    document.getElementById("thesis-progress").style.width = "0%";
+    document.getElementById("thesis-completion").textContent = "0/0";
+    
+    const container = document.getElementById("thesis-content");
+    container.innerHTML = `
+      <div class="text-center text-muted p-3">
+        <i class="bi bi-list-check opacity-25"></i>
+        <p class="mt-2 small">Select a symbol to view thesis components</p>
+      </div>
+    `;
   }
 
   updateSymbolCount() {
