@@ -137,17 +137,6 @@ type ChartDataset struct {
 	Tension         float64          `json:"tension"`
 }
 
-// GetChartColors returns predefined colors for charts
-func GetChartColors() map[string]ChartColors {
-	return map[string]ChartColors{
-		"PLTR": {Border: "#1f77b4", Background: "rgba(31, 119, 180, 0.1)"},
-		"TSLA": {Border: "#ff7f0e", Background: "rgba(255, 127, 14, 0.1)"},
-		"BBAI": {Border: "#2ca02c", Background: "rgba(44, 160, 44, 0.1)"},
-		"MSFT": {Border: "#d62728", Background: "rgba(214, 39, 40, 0.1)"},
-		"NPWR": {Border: "#9467bd", Background: "rgba(148, 103, 189, 0.1)"},
-	}
-}
-
 // ChartColors represents the color scheme for a chart
 type ChartColors struct {
 	Border     string `json:"border"`

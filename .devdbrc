@@ -1,0 +1,6 @@
+[
+  {
+    "type": "sqlite",
+    "path": "/workspaces/market-watch-go/data/market-watch.db"
+  }
+]

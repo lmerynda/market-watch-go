@@ -4,7 +4,7 @@ A real-time stock volume tracking web application similar to unusualwhales.com f
 
 ## Features
 
-- **Real-time Volume Tracking**: Monitors volume data for 5 hardcoded stocks (PLTR, TSLA, BBAI, MSFT, NPWR)
+- **Real-time Volume Tracking**: Monitors volume data for selected stocks
 - **Interactive Charts**: Chart.js-powered volume visualization with multiple time ranges
 - **Automated Data Collection**: Scheduled data fetching every 5 minutes during market hours
 - **Local Data Storage**: SQLite database for reliable data persistence
@@ -159,15 +159,6 @@ The application automatically:
 - **Trading Days**: Monday - Friday
 - **Trading Hours**: 9:30 AM - 4:00 PM Eastern Time
 - **Timezone Handling**: Automatic timezone conversion
-
-## Tracked Symbols
-
-Currently hardcoded to track:
-- **PLTR** - Palantir Technologies
-- **TSLA** - Tesla
-- **BBAI** - BigBear.ai
-- **MSFT** - Microsoft
-- **NPWR** - NET Power
 
 ## Database Schema
 

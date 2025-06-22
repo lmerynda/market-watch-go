@@ -281,14 +281,9 @@ func (vh *VolumeHandler) GetChartData(c *gin.Context) {
 		})
 	}
 
-	// Get chart colors
-	colors := models.GetChartColors()
-	color, exists := colors[symbol]
-	if !exists {
-		color = models.ChartColors{
-			Border:     "#1f77b4",
-			Background: "rgba(31, 119, 180, 0.1)",
-		}
+	color := models.ChartColors{
+		Border:     "#1f77b4",
+		Background: "rgba(31, 119, 180, 0.1)",
 	}
 
 	// Create chart dataset
