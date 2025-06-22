@@ -122,7 +122,6 @@ func main() {
 	setupHandler := handlers.NewSetupHandler(db, setupService)
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	fallingWedgeHandler := handlers.NewFallingWedgeHandler(db, fallingWedgeService)
-	hsHandler := handlers.NewHeadShouldersHandler(db, hsService)
 	patternsHandler := handlers.NewPatternsHandler(db, patternService, hsService, fallingWedgeService)
 
 	// Set up Gin router
@@ -284,20 +283,7 @@ func main() {
 			patterns.GET("/stats", patternsHandler.GetPatternStatistics)
 		}
 
-		// Head & Shoulders Pattern routes (legacy compatibility)
-		hs := api.Group("/head-shoulders")
-		{
-			hs.GET("/patterns", hsHandler.GetAllPatterns)
-			hs.GET("/patterns/stats", hsHandler.GetPatternStatistics)
-			hs.POST("/patterns/monitor", hsHandler.MonitorAllPatterns)
-			hs.GET("/patterns/details/:id", hsHandler.GetPatternDetails)
-			hs.GET("/patterns/thesis/:id", hsHandler.GetThesisComponents)
-			hs.GET("/patterns/alerts/:id", hsHandler.GetPatternAlerts)
-			hs.GET("/patterns/performance/:id", hsHandler.GetPatternPerformance)
-			hs.GET("/patterns/symbol/:symbol", hsHandler.GetPatternsBySymbol)
-			hs.POST("/symbols/:symbol/detect", hsHandler.DetectPattern)
-			hs.PUT("/pattern/:id/thesis/:component", hsHandler.UpdateThesisComponent)
-		}
+		// Head & Shoulders Pattern routes removed - use unified /api/patterns/ instead
 
 		// Falling Wedge Pattern routes (legacy compatibility)
 		fw := api.Group("/falling-wedge")
