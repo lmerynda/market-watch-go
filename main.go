@@ -57,20 +57,23 @@ func main() {
 	// Initialize database
 	db, err := database.New(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Printf("Failed to initialize database: %v", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	// Ensure default watched symbols are present if watchlist is empty
 	watched, err := db.GetWatchedSymbols()
 	if err != nil {
-		log.Fatalf("Failed to check watched symbols: %v", err)
+		log.Printf("Failed to check watched symbols: %v", err)
+		os.Exit(1)
 	}
 	if len(watched) == 0 && len(cfg.Collection.DefaultWatchedSymbols) > 0 {
 		log.Printf("No watched symbols found in DB. Adding default watched symbols from config: %v", cfg.Collection.DefaultWatchedSymbols)
 		err := db.EnsureConfigSymbolsWatched(cfg.Collection.DefaultWatchedSymbols)
 		if err != nil {
-			log.Fatalf("Failed to add default watched symbols: %v", err)
+			log.Printf("Failed to add default watched symbols: %v", err)
+			os.Exit(1)
 		}
 	}
 
@@ -79,7 +82,8 @@ func main() {
 
 	// Validate Polygon API key
 	if err := polygonService.ValidateAPIKey(); err != nil {
-		log.Fatalf("Failed to validate Polygon API key: %v", err)
+		log.Printf("Failed to validate Polygon API key: %v", err)
+		os.Exit(1)
 	}
 
 	// Initialize collector service
@@ -103,7 +107,8 @@ func main() {
 
 	// Start the collector service
 	if err := collectorService.Start(); err != nil {
-		log.Fatalf("Failed to start collector service: %v", err)
+		log.Printf("Failed to start collector service: %v", err)
+		os.Exit(1)
 	}
 	defer collectorService.Stop()
 
@@ -146,6 +151,13 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
+	// Global error logging middleware
+	router.Use(func(c *gin.Context) {
+		c.Next()
+		for _, ginErr := range c.Errors {
+			log.Printf("[GIN ERROR] %s %s | %v", c.Request.Method, c.Request.URL.Path, ginErr.Err)
+		}
+	})
 
 	// CORS middleware
 	router.Use(func(c *gin.Context) {
@@ -344,7 +356,8 @@ func main() {
 	// Start server in a goroutine
 	go func() {
 		if err := router.Run(cfg.GetAddress()); err != nil {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Printf("Failed to start server: %v", err)
+			os.Exit(1)
 		}
 	}()
 

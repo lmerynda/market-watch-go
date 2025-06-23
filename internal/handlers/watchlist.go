@@ -143,6 +143,7 @@ func (h *WatchlistHandler) GetStocks(c *gin.Context) {
 	if categoryStr := c.Query("category_id"); categoryStr != "" {
 		id, err := strconv.Atoi(categoryStr)
 		if err != nil {
+			c.Error(err) // Attach error for middleware logging
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Invalid category_id parameter",
 			})
@@ -153,6 +154,7 @@ func (h *WatchlistHandler) GetStocks(c *gin.Context) {
 
 	stocks, err := h.db.GetWatchlistStocks(categoryID)
 	if err != nil {
+		c.Error(err) // Attach error for middleware logging
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to fetch stocks",
 			"details": err.Error(),
