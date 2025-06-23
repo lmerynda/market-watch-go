@@ -18,6 +18,7 @@ type Config struct {
 	Logging       LoggingConfig       `yaml:"logging"`
 	DataRetention DataRetentionConfig `yaml:"data_retention"`
 	Email         EmailConfig         `yaml:"email"`
+	WatchlistDefaults WatchlistDefaults `yaml:"watchlist_defaults"`
 }
 
 type ServerConfig struct {
@@ -65,6 +66,16 @@ type EmailConfig struct {
 	FromName    string `yaml:"from_name"`
 	FromAddress string `yaml:"from_address"`
 	Enabled     bool   `yaml:"enabled"`
+}
+
+type WatchlistDefaults struct {
+	Categories []WatchlistCategoryConfig `yaml:"categories"`
+}
+
+type WatchlistCategoryConfig struct {
+	Name  string   `yaml:"name"`
+	Color string   `yaml:"color"`
+	Stocks []string `yaml:"stocks"`
 }
 
 // Load reads configuration from file and environment variables

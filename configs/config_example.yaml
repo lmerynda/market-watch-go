@@ -43,3 +43,18 @@ email:
   from_name: "Market Watch"
   from_address: "your-email@gmail.com"
   enabled: true
+
+watchlist_defaults:
+  categories:
+    - name: "long long"
+      color: "#1e90ff"
+      stocks:
+        - "NVDA"
+        - "PLTR"
+        - "TSLA"
+    - name: "data centers"
+      color: "#28a745"
+      stocks:
+        - "LTRB"
+        - "ANET"
+        - "VRT"

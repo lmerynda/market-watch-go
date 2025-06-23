@@ -11,6 +11,7 @@ import (
 	"market-watch-go/internal/config"
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/handlers"
+	"market-watch-go/internal/models"
 	"market-watch-go/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -74,6 +75,37 @@ func main() {
 		if err != nil {
 			log.Printf("Failed to add default watched symbols: %v", err)
 			os.Exit(1)
+		}
+	}
+
+	// Ensure default watchlist categories and stocks are present if missing
+	categories, err := db.GetWatchlistCategories()
+	if err != nil {
+		log.Printf("Failed to check watchlist categories: %v", err)
+		os.Exit(1)
+	}
+	if len(categories) == 0 && len(cfg.WatchlistDefaults.Categories) > 0 {
+		log.Printf("No watchlist categories found in DB. Adding default categories and stocks from config.")
+		for _, catCfg := range cfg.WatchlistDefaults.Categories {
+			cat := models.WatchlistCategory{
+				Name:  catCfg.Name,
+				Color: catCfg.Color,
+			}
+			createdCat, err := db.CreateWatchlistCategory(cat)
+			if err != nil {
+				log.Printf("Failed to create watchlist category '%s': %v", catCfg.Name, err)
+				continue
+			}
+			for _, symbol := range catCfg.Stocks {
+				stock := models.WatchlistStock{
+					Symbol:     symbol,
+					CategoryID: &createdCat.ID,
+				}
+				_, err := db.AddWatchlistStock(stock)
+				if err != nil {
+					log.Printf("Failed to add stock '%s' to category '%s': %v", symbol, catCfg.Name, err)
+				}
+			}
 		}
 	}
 
