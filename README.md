@@ -2,6 +2,19 @@
 
 A real-time stock volume tracking web application similar to unusualwhales.com functionality. This application fetches trading volume data from Polygon.io API and displays it in interactive charts.
 
+---
+
+## ⚡️ Moving Averages: Now Using EMA (Exponential Moving Average)
+
+- **SMA (Simple Moving Average) is deprecated.**
+- All moving average calculations and watchlist fields now use EMA (9, 50, 200) instead of SMA.
+- The database schema and API have been updated to reflect this change.
+- New endpoints for querying EMA values directly from Polygon.io:
+  - `GET /api/polygon/ema?symbol=TSLA&window=9` (single window)
+  - `GET /api/polygon/ema/batch?symbol=TSLA&windows=9,50,200` (multiple windows)
+
+---
+
 ## Features
 
 - **Real-time Volume Tracking**: Monitors volume data for selected stocks

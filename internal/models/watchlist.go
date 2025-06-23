@@ -27,6 +27,9 @@ type WatchlistStock struct {
 	MarketCap     int64     `json:"market_cap" db:"market_cap"`
 	AddedAt       time.Time `json:"added_at" db:"added_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+	EMA9          float64   `json:"ema_9" db:"ema_9"`
+	EMA50         float64   `json:"ema_50" db:"ema_50"`
+	EMA200        float64   `json:"ema_200" db:"ema_200"`
 
 	// Joined data
 	CategoryName  string `json:"category_name,omitempty" db:"category_name"`

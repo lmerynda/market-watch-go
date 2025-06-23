@@ -167,49 +167,49 @@ func (ps *PolygonService) GetMultipleSymbolAggregates(symbols []string, from, to
 }
 
 // GetCurrentPrice fetches the current price for a symbol using daily aggregates
-func (ps *PolygonService) GetCurrentPrice(symbol string) (float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), ps.cfg.Polygon.Timeout)
-	defer cancel()
-
-	// Get the latest daily aggregate
-	yesterday := time.Now().AddDate(0, 0, -1)
-	today := time.Now()
-
-	fromStr := yesterday.Format("2006-01-02")
-	toStr := today.Format("2006-01-02")
-
-	// Build the URL for daily aggregates
-	url := fmt.Sprintf("%s/v2/aggs/ticker/%s/range/1/day/%s/%s?adjusted=true&sort=desc&limit=1&apikey=%s",
-		ps.cfg.Polygon.BaseURL, symbol, fromStr, toStr, ps.cfg.Polygon.APIKey)
-
-	// Make the HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := ps.client.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("failed to make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("API request failed with status %d", resp.StatusCode)
-	}
-
-	var polygonResp PolygonResponse
-	if err := json.NewDecoder(resp.Body).Decode(&polygonResp); err != nil {
-		return 0, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if polygonResp.Status != "OK" || len(polygonResp.Results) == 0 {
-		return 0, fmt.Errorf("no current price data available for %s", symbol)
-	}
-
-	return polygonResp.Results[0].Close, nil
-}
-
+// Deprecated: Use PolygonEMAService.GetLastPrice instead.
+// func (ps *PolygonService) GetCurrentPrice(symbol string) (float64, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), ps.cfg.Polygon.Timeout)
+// 	defer cancel()
+// 
+// 	// Get the latest daily aggregate
+// 	yesterday := time.Now().AddDate(0, 0, -1)
+// 	today := time.Now()
+// 
+// 	fromStr := yesterday.Format("2006-01-02")
+// 	toStr := today.Format("2006-01-02")
+// 
+// 	// Build the URL for daily aggregates
+// 	url := fmt.Sprintf("%s/v2/aggs/ticker/%s/range/1/day/%s/%s?adjusted=true&sort=desc&limit=1&apikey=%s",
+// 		ps.cfg.Polygon.BaseURL, symbol, fromStr, toStr, ps.cfg.Polygon.APIKey)
+// 
+// 	// Make the HTTP request
+// 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to create request: %w", err)
+// 	}
+// 
+// 	resp, err := ps.client.Do(req)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to make request: %w", err)
+// 	}
+// 	defer resp.Body.Close()
+// 
+// 	if resp.StatusCode != http.StatusOK {
+// 		return 0, fmt.Errorf("API request failed with status %d", resp.StatusCode)
+// 	}
+// 
+// 	var polygonResp PolygonResponse
+// 	if err := json.NewDecoder(resp.Body).Decode(&polygonResp); err != nil {
+// 		return 0, fmt.Errorf("failed to decode response: %w", err)
+// 	}
+// 
+// 	if polygonResp.Status != "OK" || len(polygonResp.Results) == 0 {
+// 		return 0, fmt.Errorf("no current price data available for %s", symbol)
+// 	}
+// 
+// 	return polygonResp.Results[0].Close, nil
+// }
 // ValidateAPIKey checks if the API key is valid by making a test request
 func (ps *PolygonService) ValidateAPIKey() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

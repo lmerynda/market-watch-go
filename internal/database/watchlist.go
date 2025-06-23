@@ -153,6 +153,7 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 				ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
 				ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
 				ws.added_at, ws.updated_at,
+				ws.ema_9, ws.ema_50, ws.ema_200,
 				wc.name as category_name, wc.color as category_color
 			FROM watchlist_stocks ws
 			LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
@@ -166,6 +167,7 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 				ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
 				ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
 				ws.added_at, ws.updated_at,
+				ws.ema_9, ws.ema_50, ws.ema_200,
 				wc.name as category_name, wc.color as category_color
 			FROM watchlist_stocks ws
 			LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
@@ -198,6 +200,9 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 			&stock.MarketCap,
 			&stock.AddedAt,
 			&stock.UpdatedAt,
+			&stock.EMA9,
+			&stock.EMA50,
+			&stock.EMA200,
 			&categoryName,
 			&categoryColor,
 		)
@@ -272,6 +277,34 @@ func (db *Database) UpdateWatchlistStock(id int, stock models.WatchlistStock) er
 		stock.ChangePercent,
 		stock.Volume,
 		stock.MarketCap,
+		id,
+	)
+	return err
+}
+
+func (db *Database) UpdateWatchlistStockWithEMA(id int, stock models.WatchlistStock) error {
+	query := `
+		UPDATE watchlist_stocks 
+		SET name = ?, category_id = ?, notes = ?, tags = ?, 
+		    price = ?, change = ?, change_percent = ?, volume = ?, market_cap = ?,
+		    ema_9 = ?, ema_50 = ?, ema_200 = ?,
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`
+
+	_, err := db.conn.Exec(query,
+		stock.Name,
+		stock.CategoryID,
+		stock.Notes,
+		stock.Tags,
+		stock.Price,
+		stock.Change,
+		stock.ChangePercent,
+		stock.Volume,
+		stock.MarketCap,
+		stock.EMA9,
+		stock.EMA50,
+		stock.EMA200,
 		id,
 	)
 	return err

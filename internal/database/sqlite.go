@@ -360,6 +360,35 @@ func (db *DB) runMigrations() error {
 		}
 	}
 
+	// --- MIGRATION: Change SMA_7 to SMA_9 in watchlist_stocks ---
+	// Add sma_9 if missing
+	alterSMA9 := "ALTER TABLE watchlist_stocks ADD COLUMN sma_9 REAL DEFAULT 0"
+	_, err = db.conn.Exec(alterSMA9)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") && !strings.Contains(err.Error(), "already exists") {
+		log.Printf("Warning: Failed to add sma_9 column: %v", err)
+	}
+	// Optional: migrate data from sma_7 to sma_9 if sma_7 exists
+	// (No data migration here, just schema)
+	// Remove sma_7 column if it exists (SQLite does not support DROP COLUMN directly)
+	// Document for user: If you want to fully remove sma_7, you must recreate the table without it.
+	// For now, code will ignore sma_7 and only use sma_9
+
+	// --- MIGRATION: Remove SMA columns, add EMA_9, EMA_50, EMA_200 to watchlist_stocks ---
+	// Add ema_9, ema_50, ema_200 if missing
+	emaCols := map[string]string{
+		"ema_9":   "REAL DEFAULT 0",
+		"ema_50":  "REAL DEFAULT 0",
+		"ema_200": "REAL DEFAULT 0",
+	}
+	for col, typ := range emaCols {
+		alter := "ALTER TABLE watchlist_stocks ADD COLUMN " + col + " " + typ
+		_, err := db.conn.Exec(alter)
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") && !strings.Contains(err.Error(), "already exists") {
+			log.Printf("Warning: Failed to add column '%s' to watchlist_stocks: %v", col, err)
+		}
+	}
+	// Document: SMA columns are deprecated and ignored in code.
+
 	return nil
 }
 

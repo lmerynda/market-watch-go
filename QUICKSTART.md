@@ -1,5 +1,18 @@
 # 🚀 Market Watch - Complete Technical Analysis System
 
+---
+
+## ⚡️ Moving Averages: Now Using EMA (Exponential Moving Average)
+
+- **SMA (Simple Moving Average) is deprecated.**
+- All moving average calculations and watchlist fields now use EMA (9, 50, 200) instead of SMA.
+- The database schema and API have been updated to reflect this change.
+- New endpoints for querying EMA values directly from Polygon.io:
+  - `GET /api/polygon/ema?symbol=TSLA&window=9` (single window)
+  - `GET /api/polygon/ema/batch?symbol=TSLA&windows=9,50,200` (multiple windows)
+
+---
+
 ## 🎯 **Phase 3 Complete: Advanced Trading Setup Detection & Scoring**
 
 A comprehensive Go-based technical analysis system with intelligent trading setup detection, 100-point scoring, and real-time market analysis.
@@ -122,6 +135,15 @@ POST /api/support-resistance/PLTR/detect
 
 # Get nearest support and resistance
 GET /api/support-resistance/PLTR/nearest
+```
+
+### **📉 Moving Averages (EMA)**
+```bash
+# Get EMA values for a symbol
+GET /api/polygon/ema?symbol=TSLA&window=9
+
+# Get EMA values for multiple windows
+GET /api/polygon/ema/batch?symbol=TSLA&windows=9,50,200
 ```
 
 ## 💡 **Example API Responses**

@@ -18,25 +18,16 @@ import (
 )
 
 func main() {
+	// Improve log output: add timestamp and file info
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Printf("[STARTUP] Logging to stderr (default for Go log package). If running in Docker or a dev container, check container logs or VS Code Output panel.")
+
 	// Parse command line flags
 	var (
 		configPath = flag.String("config", "configs/config.yaml", "Path to configuration file")
-		envFile    = flag.String("env", "", "Path to environment file")
 		historical = flag.Int("historical", 0, "Collect historical data for N days (0 = disabled)")
 	)
 	flag.Parse()
-
-	// Load environment variables from .env file
-	if *envFile != "" {
-		if err := config.LoadEnvFile(*envFile); err != nil {
-			log.Printf("Warning: Failed to load environment file %s: %v", *envFile, err)
-		}
-	} else {
-		// Try to load .env file from current directory
-		if err := config.LoadEnvFile(".env"); err != nil {
-			log.Printf("Warning: Failed to load .env file: %v", err)
-		}
-	}
 
 	// Load configuration
 	cfg, err := config.Load(*configPath)
@@ -44,10 +35,7 @@ func main() {
 		log.Printf("Failed to load configuration: %v", err)
 		log.Printf("\n" +
 			"🔑 SETUP REQUIRED:\n" +
-			"Please set your Polygon.io API key in one of these ways:\n" +
-			"1. Edit the .env file and replace 'your_polygon_api_key_here' with your actual API key\n" +
-			"2. Set environment variable: export POLYGON_API_KEY=your_actual_api_key\n" +
-			"3. Edit configs/config.yaml and update the polygon.api_key field\n\n" +
+			"Please set your Polygon.io API key in configs/config.yaml under polygon.api_key\n" +
 			"💡 Get a free API key at: https://polygon.io/\n" +
 			"   1. Sign up for a free account\n" +
 			"   2. Go to Dashboard -> API Keys\n" +
@@ -180,6 +168,9 @@ func main() {
 	hsService := services.NewHeadShouldersDetectionService(db, setupService, taService, emailService)
 	patternService := services.NewPatternDetectionService(db, taService, hsService, emailService)
 
+	// Initialize Polygon EMA service
+	emaService := services.NewPolygonEMAService(cfg.Polygon.APIKey)
+
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
 	priceHandler := handlers.NewPriceHandler(db, collectorService, polygonService)
@@ -191,6 +182,10 @@ func main() {
 	fallingWedgeHandler := handlers.NewFallingWedgeHandler(db, fallingWedgeService)
 	patternsHandler := handlers.NewPatternsHandler(db, patternService, hsService, fallingWedgeService)
 	watchlistHandler := handlers.NewWatchlistHandler(db)
+
+	// Polygon EMA handlers
+	polygonEMAHandler := handlers.PolygonEMAHandler(emaService)
+	polygonEMABatchHandler := handlers.PolygonEMABatchHandler(emaService)
 
 	// Set up Gin router
 	if cfg.Logging.Level != "debug" {
@@ -392,7 +387,14 @@ func main() {
 
 			// Summary
 			watchlist.GET("/summary", watchlistHandler.GetSummary)
+
+			// Refresh prices and EMAs for all stocks
+			watchlist.POST("/refresh", handlers.WatchlistRefreshHandler(db, emaService))
 		}
+
+		// Polygon EMA endpoints
+		api.GET("/polygon/ema", polygonEMAHandler)
+		api.GET("/polygon/ema/batch", polygonEMABatchHandler)
 	}
 
 	// Start server

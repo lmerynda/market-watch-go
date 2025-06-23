@@ -1,4 +1,6 @@
 // Stock Watchlist JavaScript
+console.log("[watchlist.js] Script loaded");
+
 class WatchlistManager {
   constructor() {
     this.categories = [];
@@ -78,10 +80,11 @@ class WatchlistManager {
     try {
       const response = await fetch("/api/watchlist/categories");
       if (!response.ok) {
+        console.error("HTTP error loading categories:", response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
       const data = await response.json();
+      console.log("Loaded categories:", data);
       this.categories = data.categories || [];
       this.displayCategories();
       this.populateCategoryDropdowns();
@@ -186,13 +189,13 @@ class WatchlistManager {
     try {
       const response = await fetch("/api/watchlist/stocks");
       if (!response.ok) {
+        console.error("HTTP error loading stocks:", response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
       const data = await response.json();
+      console.log("Loaded stocks:", data);
       this.stocks = data.stocks || [];
       this.filterAndDisplayStocks();
-      this.updateStockCount();
     } catch (error) {
       console.error("Failed to load stocks:", error);
       this.showError("Failed to load stocks: " + error.message);
@@ -288,12 +291,21 @@ class WatchlistManager {
         </td>
         <td>${categoryBadge}</td>
         <td>
-          <span class="fw-bold">$${stock.price.toFixed(2)}</span>
+          <span class="fw-bold">$${stock.price !== undefined ? stock.price.toFixed(2) : '-'}</span>
+        </td>
+        <td>
+          <span class="fw-bold">${stock.ema_9 !== undefined ? stock.ema_9.toFixed(2) : '-'}</span>
+        </td>
+        <td>
+          <span class="fw-bold">${stock.ema_50 !== undefined ? stock.ema_50.toFixed(2) : '-'}</span>
+        </td>
+        <td>
+          <span class="fw-bold">${stock.ema_200 !== undefined ? stock.ema_200.toFixed(2) : '-'}</span>
         </td>
         <td class="${changeClass}">
           <i class="bi ${changeIcon} me-1"></i>
-          ${stock.change_percent.toFixed(2)}%
-          <div class="small">$${stock.change.toFixed(2)}</div>
+          ${stock.change_percent !== undefined ? stock.change_percent.toFixed(2) : '-'}%
+          <div class="small">$${stock.change !== undefined ? stock.change.toFixed(2) : '-'}</div>
         </td>
         <td class="volume-formatted">
           ${this.formatVolume(stock.volume)}
@@ -584,93 +596,95 @@ class WatchlistManager {
   }
 
   async refreshPrices() {
-    // This would integrate with a real-time price service
-    this.showInfo("Price refresh functionality coming soon!");
-  }
+    try {
+      // Show loading spinner or disable button
+      const btn = document.getElementById("refresh-prices-btn");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...';
 
-  viewStockDetails(id) {
-    // This could open a detailed view or redirect to a stock analysis page
-    const stock = this.stocks.find(s => s.id === id);
-    if (stock) {
-      console.log("Viewing details for:", stock);
-      // Could integrate with pattern-watcher or external stock info
+      const response = await fetch("/api/watchlist/refresh", { method: "POST" });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || "Failed to refresh prices");
+      }
+      this.showSuccess("Prices and EMAs refreshed");
+      await this.loadStocks();
+    } catch (error) {
+      this.showError("Failed to refresh prices: " + error.message);
+    } finally {
+      // Restore button state
+      const btn = document.getElementById("refresh-prices-btn");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Refresh Prices';
     }
   }
 
-  // Utility Methods
+  viewStockDetails(id) {
+        // This could open a detailed view or redirect to a stock analysis page
+        const stock = this.stocks.find(s => s.id === id);
+        if (!stock) return;
+        // Implement modal or redirect logic here
+        this.showInfo(`Details for ${stock.symbol} coming soon!`);
+    }
 
-  showSuccess(message) {
-    this.showToast(message, "success");
-  }
+  // --- User Feedback Helpers ---
 
   showError(message) {
-    this.showToast(message, "error");
+    this.showBanner(message, 'danger');
+  }
+
+  showSuccess(message) {
+    this.showBanner(message, 'success');
   }
 
   showInfo(message) {
-    this.showToast(message, "info");
+    this.showBanner(message, 'info');
   }
 
   showUndoableSuccess(message, undoCallback) {
-    const container = document.getElementById("toast-container");
-    const toastId = "toast-" + Date.now();
-
-    const toast = document.createElement("div");
-    toast.id = toastId;
-    toast.className = "toast toast-success";
-    toast.innerHTML = `
-      <div class="toast-header">
-        <strong class="me-auto">Success</strong>
-        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-      </div>
-      <div class="toast-body">
-        <div>${message}</div>
-        <div class="mt-2">
-          <button class="btn btn-outline-primary btn-sm" onclick="this.closest('.toast').querySelector('.btn-close').click(); (${undoCallback.toString()})()">
-            <i class="bi bi-arrow-counterclockwise"></i> Undo
-          </button>
-        </div>
-      </div>
-    `;
-
-    container.appendChild(toast);
-    const bsToast = new bootstrap.Toast(toast, { delay: 8000 }); // Longer delay for undo
-    bsToast.show();
-
-    toast.addEventListener("hidden.bs.toast", () => {
-      toast.remove();
-    });
+    this.showBanner(message + ' <button class="btn btn-link btn-sm p-0 ms-2" id="undo-btn">Undo</button>', 'success', true, undoCallback);
   }
 
-  showToast(message, type) {
-    const container = document.getElementById("toast-container");
-    const toastId = "toast-" + Date.now();
-
-    const toast = document.createElement("div");
-    toast.id = toastId;
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-      <div class="toast-header">
-        <strong class="me-auto">${
-          type === "success" ? "Success" : type === "error" ? "Error" : "Info"
-        }</strong>
-        <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-      </div>
-      <div class="toast-body">${message}</div>
-    `;
-
-    container.appendChild(toast);
-    const bsToast = new bootstrap.Toast(toast);
-    bsToast.show();
-
-    toast.addEventListener("hidden.bs.toast", () => {
-      toast.remove();
-    });
+  showBanner(message, type = 'info', html = false, undoCallback = null) {
+    let banner = document.getElementById('watchlist-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'watchlist-banner';
+      banner.className = 'alert alert-' + type + ' position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+      banner.style.zIndex = 2000;
+      banner.style.minWidth = '300px';
+      banner.style.maxWidth = '90vw';
+      banner.style.textAlign = 'center';
+      document.body.appendChild(banner);
+    }
+    banner.className = 'alert alert-' + type + ' position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+    if (html) {
+      banner.innerHTML = message;
+    } else {
+      banner.textContent = message;
+    }
+    banner.style.display = 'block';
+    if (undoCallback) {
+      setTimeout(() => {
+        const undoBtn = document.getElementById('undo-btn');
+        if (undoBtn) {
+          undoBtn.onclick = () => {
+            banner.style.display = 'none';
+            undoCallback();
+          };
+        }
+      }, 0);
+    }
+    setTimeout(() => {
+      banner.style.display = 'none';
+    }, 3500);
   }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM loaded, initializing Watchlist Manager...");
-  window.watchlist = new WatchlistManager();
+// Ensure WatchlistManager is instantiated and attached to window
+window.addEventListener('DOMContentLoaded', () => {
+  console.log("[watchlist.js] DOMContentLoaded");
+  if (!window.watchlist) {
+    window.watchlist = new WatchlistManager();
+  }
 });

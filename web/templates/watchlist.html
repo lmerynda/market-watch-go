@@ -100,8 +100,8 @@
                                 </div>
 
                                 <!-- Refresh Button -->
-                                <button class="btn btn-outline-info btn-sm" id="refresh-prices-btn">
-                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                <button id="refresh-prices-btn" class="btn btn-primary mb-2" type="button">
+                                    <i class="bi bi-arrow-repeat"></i> Refresh Prices
                                 </button>
                             </div>
                         </div>
@@ -116,6 +116,9 @@
                                         <th>Name</th>
                                         <th>Category</th>
                                         <th>Price</th>
+                                        <th>EMA 9</th>
+                                        <th>EMA 50</th>
+                                        <th>EMA 200</th>
                                         <th>Change</th>
                                         <th>Volume</th>
                                         <th>Notes</th>
@@ -125,7 +128,7 @@
                                 </thead>
                                 <tbody id="stocks-tbody">
                                     <tr>
-                                        <td colspan="9" class="text-center p-4 text-muted">
+                                        <td colspan="12" class="text-center p-4 text-muted">
                                             <div class="spinner-border spinner-border-sm me-2"></div>
                                             Loading stocks...
                                         </td>
@@ -284,6 +287,16 @@
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+          // ...existing code...
+          const wm = new WatchlistManager();
+          // ...existing code...
+          document.getElementById("refresh-prices-btn").addEventListener("click", () => wm.refreshPrices());
+          // Optionally trigger refresh on page load:
+          // wm.refreshPrices();
         });
     </script>
 </body>

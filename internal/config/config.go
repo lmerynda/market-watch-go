@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -78,28 +76,18 @@ type WatchlistCategoryConfig struct {
 	Stocks []string `yaml:"stocks"`
 }
 
-// Load reads configuration from file and environment variables
+// Load reads configuration from file only (no environment variable overrides)
 func Load(configPath string) (*Config, error) {
-	// Initialize empty configuration - no hardcoded defaults
 	cfg := &Config{}
-
-	// Load from YAML file (required)
 	if configPath == "" {
 		return nil, fmt.Errorf("config file path is required")
 	}
-
 	if err := loadFromYAML(cfg, configPath); err != nil {
 		return nil, fmt.Errorf("failed to load config from YAML: %w", err)
 	}
-
-	// Override with environment variables
-	loadFromEnv(cfg)
-
-	// Validate configuration
 	if err := validate(cfg); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
-
 	return cfg, nil
 }
 
@@ -113,48 +101,6 @@ func loadFromYAML(cfg *Config, configPath string) error {
 	expanded := os.ExpandEnv(string(data))
 
 	return yaml.Unmarshal([]byte(expanded), cfg)
-}
-
-func loadFromEnv(cfg *Config) {
-	// Server configuration
-	if port := os.Getenv("SERVER_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			cfg.Server.Port = p
-		}
-	}
-	if host := os.Getenv("SERVER_HOST"); host != "" {
-		cfg.Server.Host = host
-	}
-
-	// Database configuration
-	if dbPath := os.Getenv("DATABASE_PATH"); dbPath != "" {
-		cfg.Database.Path = dbPath
-	}
-
-	// Polygon configuration
-	if apiKey := os.Getenv("POLYGON_API_KEY"); apiKey != "" {
-		fmt.Printf("Using Polygon API Key from environment variable: %s\n", apiKey)
-		cfg.Polygon.APIKey = apiKey
-	}
-
-	// Collection configuration
-	if interval := os.Getenv("COLLECTION_INTERVAL"); interval != "" {
-		if d, err := time.ParseDuration(interval); err == nil {
-			cfg.Collection.Interval = d
-		}
-	}
-	if symbols := os.Getenv("DEFAULT_WATCHED_SYMBOLS"); symbols != "" {
-		cfg.Collection.DefaultWatchedSymbols = strings.Split(symbols, ",")
-		// Trim whitespace from symbols
-		for i, symbol := range cfg.Collection.DefaultWatchedSymbols {
-			cfg.Collection.DefaultWatchedSymbols[i] = strings.TrimSpace(symbol)
-		}
-	}
-
-	// Logging configuration
-	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
-		cfg.Logging.Level = logLevel
-	}
 }
 
 func validate(cfg *Config) error {
