@@ -61,6 +61,19 @@ func main() {
 	}
 	defer db.Close()
 
+	// Ensure default watched symbols are present if watchlist is empty
+	watched, err := db.GetWatchedSymbols()
+	if err != nil {
+		log.Fatalf("Failed to check watched symbols: %v", err)
+	}
+	if len(watched) == 0 && len(cfg.Collection.DefaultWatchedSymbols) > 0 {
+		log.Printf("No watched symbols found in DB. Adding default watched symbols from config: %v", cfg.Collection.DefaultWatchedSymbols)
+		err := db.EnsureConfigSymbolsWatched(cfg.Collection.DefaultWatchedSymbols)
+		if err != nil {
+			log.Fatalf("Failed to add default watched symbols: %v", err)
+		}
+	}
+
 	// Initialize Polygon service
 	polygonService := services.NewPolygonService(cfg)
 

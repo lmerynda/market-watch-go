@@ -42,8 +42,8 @@ type PolygonConfig struct {
 }
 
 type CollectionConfig struct {
-	Interval time.Duration `yaml:"interval"`
-	Symbols  []string      `yaml:"symbols"`
+	Interval              time.Duration `yaml:"interval"`
+	DefaultWatchedSymbols []string      `yaml:"default_watched_symbols"`
 }
 
 type LoggingConfig struct {
@@ -132,11 +132,11 @@ func loadFromEnv(cfg *Config) {
 			cfg.Collection.Interval = d
 		}
 	}
-	if symbols := os.Getenv("TRACKED_SYMBOLS"); symbols != "" {
-		cfg.Collection.Symbols = strings.Split(symbols, ",")
+	if symbols := os.Getenv("DEFAULT_WATCHED_SYMBOLS"); symbols != "" {
+		cfg.Collection.DefaultWatchedSymbols = strings.Split(symbols, ",")
 		// Trim whitespace from symbols
-		for i, symbol := range cfg.Collection.Symbols {
-			cfg.Collection.Symbols[i] = strings.TrimSpace(symbol)
+		for i, symbol := range cfg.Collection.DefaultWatchedSymbols {
+			cfg.Collection.DefaultWatchedSymbols[i] = strings.TrimSpace(symbol)
 		}
 	}
 
@@ -155,8 +155,8 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("invalid server port: %d", cfg.Server.Port)
 	}
 
-	if len(cfg.Collection.Symbols) == 0 {
-		return fmt.Errorf("at least one symbol must be configured for collection")
+	if len(cfg.Collection.DefaultWatchedSymbols) == 0 {
+		return fmt.Errorf("at least one default watched symbol must be configured for collection")
 	}
 
 	if cfg.Collection.Interval < time.Minute {

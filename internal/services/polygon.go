@@ -282,12 +282,26 @@ func (ps *PolygonService) GetLastTradingDay() time.Time {
 }
 
 // CollectCurrentData collects current volume data for all configured symbols
-func (ps *PolygonService) CollectCurrentData() (map[string][]*localmodels.VolumeData, error) {
+func (ps *PolygonService) CollectCurrentData(getWatchedSymbolsFromDB func() ([]string, error), saveWatchedSymbolsToDB func([]string) error) (map[string][]*localmodels.VolumeData, error) {
 	// Get data for today
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
-	return ps.GetMultipleSymbolAggregates(ps.cfg.Collection.Symbols, today, now)
+	// Try to get watched symbols from DB
+	symbols, err := getWatchedSymbolsFromDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get watched symbols from DB: %w", err)
+	}
+
+	// If no symbols in DB, use config and save to DB
+	if len(symbols) == 0 {
+		symbols = ps.cfg.Collection.DefaultWatchedSymbols
+		if err := saveWatchedSymbolsToDB(symbols); err != nil {
+			return nil, fmt.Errorf("failed to save watched symbols to DB: %w", err)
+		}
+	}
+
+	return ps.GetMultipleSymbolAggregates(symbols, today, now)
 }
 
 // GetHistoricalData fetches historical data for a symbol over specified days

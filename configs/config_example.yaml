@@ -18,7 +18,7 @@ polygon:
 
 collection:
   interval: "5m"
-  symbols:
+  default_watched_symbols:
     - "PLTR"
     - "TSLA"
     - "BBAI"

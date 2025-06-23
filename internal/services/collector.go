@@ -116,8 +116,6 @@ func (cs *CollectorService) collectData() {
 		cs.mutex.Unlock()
 	}()
 
-	log.Printf("Starting data collection for symbols: %v", cs.cfg.Collection.Symbols)
-
 	// Note: We collect data 24/7 to capture pre-market, after-hours, and extended trading
 	// This ensures we don't miss important price movements that happen outside regular market hours
 	log.Printf("Collecting data (24/7 mode - captures pre-market, after-hours, and extended trading)")
