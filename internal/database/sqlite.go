@@ -339,6 +339,27 @@ func (db *DB) runMigrations() error {
 		log.Printf("Warning: Failed to add current_price column (might already exist): %v", err)
 	}
 
+	// --- MIGRATION: Add missing columns to watchlist_stocks ---
+	// List of columns to ensure exist in watchlist_stocks
+	watchlistStocksColumns := map[string]string{
+		"notes":          "TEXT",
+		"tags":           "TEXT",
+		"price":          "REAL DEFAULT 0",
+		"change":         "REAL DEFAULT 0",
+		"change_percent": "REAL DEFAULT 0",
+		"volume":         "INTEGER DEFAULT 0",
+		"market_cap":     "INTEGER DEFAULT 0",
+		"added_at":       "DATETIME DEFAULT CURRENT_TIMESTAMP",
+		"updated_at":     "DATETIME DEFAULT CURRENT_TIMESTAMP",
+	}
+	for col, typ := range watchlistStocksColumns {
+		alter := "ALTER TABLE watchlist_stocks ADD COLUMN " + col + " " + typ
+		_, err := db.conn.Exec(alter)
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") && !strings.Contains(err.Error(), "already exists") {
+			log.Printf("Warning: Failed to add column '%s' to watchlist_stocks: %v", col, err)
+		}
+	}
+
 	return nil
 }
 

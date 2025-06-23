@@ -79,31 +79,48 @@ func main() {
 	}
 
 	// Ensure default watchlist categories and stocks are present if missing
-	categories, err := db.GetWatchlistCategories()
-	if err != nil {
-		log.Printf("Failed to check watchlist categories: %v", err)
-		os.Exit(1)
-	}
-	if len(categories) == 0 && len(cfg.WatchlistDefaults.Categories) > 0 {
-		log.Printf("No watchlist categories found in DB. Adding default categories and stocks from config.")
+	if len(cfg.WatchlistDefaults.Categories) > 0 {
+		log.Printf("Ensuring default watchlist categories and stocks from config.")
+		// Get all categories from DB (name->id)
+		dbCategories, err := db.GetWatchlistCategories()
+		if err != nil {
+			log.Printf("Failed to fetch watchlist categories: %v", err)
+			os.Exit(1)
+		}
+		catNameToID := make(map[string]int)
+		for _, c := range dbCategories {
+			catNameToID[c.Name] = c.ID
+		}
 		for _, catCfg := range cfg.WatchlistDefaults.Categories {
-			cat := models.WatchlistCategory{
-				Name:  catCfg.Name,
-				Color: catCfg.Color,
-			}
-			createdCat, err := db.CreateWatchlistCategory(cat)
-			if err != nil {
-				log.Printf("Failed to create watchlist category '%s': %v", catCfg.Name, err)
-				continue
+			catID, ok := catNameToID[catCfg.Name]
+			if !ok {
+				cat := models.WatchlistCategory{
+					Name:  catCfg.Name,
+					Color: catCfg.Color,
+				}
+				createdCat, err := db.CreateWatchlistCategory(cat)
+				if err != nil {
+					log.Printf("Failed to create watchlist category '%s': %v", catCfg.Name, err)
+					continue
+				}
+				catID = createdCat.ID
+				catNameToID[catCfg.Name] = catID
 			}
 			for _, symbol := range catCfg.Stocks {
-				stock := models.WatchlistStock{
-					Symbol:     symbol,
-					CategoryID: &createdCat.ID,
-				}
-				_, err := db.AddWatchlistStock(stock)
+				exists, err := db.WatchlistStockExists(symbol)
 				if err != nil {
-					log.Printf("Failed to add stock '%s' to category '%s': %v", symbol, catCfg.Name, err)
+					log.Printf("Failed to check if stock '%s' exists: %v", symbol, err)
+					continue
+				}
+				if !exists {
+					stock := models.WatchlistStock{
+						Symbol:     symbol,
+						CategoryID: &catID,
+					}
+					_, err := db.AddWatchlistStock(stock)
+					if err != nil {
+						log.Printf("Failed to add stock '%s' to category '%s': %v", symbol, catCfg.Name, err)
+					}
 				}
 			}
 		}

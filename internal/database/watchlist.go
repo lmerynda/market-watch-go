@@ -409,3 +409,13 @@ func (db *Database) queryWatchlistStocks(query string, args ...interface{}) ([]m
 
 	return stocks, nil
 }
+
+// WatchlistStockExists returns true if a stock with the given symbol exists in the watchlist
+func (db *Database) WatchlistStockExists(symbol string) (bool, error) {
+	var count int
+	err := db.conn.QueryRow("SELECT COUNT(1) FROM watchlist_stocks WHERE symbol = ?", strings.ToUpper(symbol)).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
