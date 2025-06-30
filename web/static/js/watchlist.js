@@ -3,9 +3,9 @@ console.log("[watchlist.js] Script loaded");
 
 class WatchlistManager {
   constructor() {
-    this.categories = [];
+    this.strategies = [];
     this.stocks = [];
-    this.selectedCategoryId = null;
+    this.selectedStrategyId = null;
     this.currentSort = { field: 'symbol', direction: 'asc' };
     this.searchTerm = '';
 
@@ -17,7 +17,7 @@ class WatchlistManager {
 
     try {
       this.setupEventListeners();
-      await this.loadCategories();
+      await this.loadStrategies();
       await this.loadStocks();
 
       console.log("Watchlist Manager initialized successfully");
@@ -33,9 +33,9 @@ class WatchlistManager {
       this.openAddStockModal();
     });
 
-    // Add category button
-    document.getElementById("add-category-btn").addEventListener("click", () => {
-      this.openAddCategoryModal();
+    // Add strategy button
+    document.getElementById("add-strategy-btn").addEventListener("click", () => {
+      this.openAddStrategyModal();
     });
 
     // Search input
@@ -68,81 +68,81 @@ class WatchlistManager {
       this.updateStock();
     });
 
-    // Save category button
-    document.getElementById("save-category-btn").addEventListener("click", () => {
-      this.saveCategory();
+    // Save strategy button
+    document.getElementById("save-strategy-btn").addEventListener("click", () => {
+      this.saveStrategy();
     });
   }
 
-  // Categories Management
+  // Strategies Management
 
-  async loadCategories() {
+  async loadStrategies() {
     try {
-      const response = await fetch("/api/watchlist/categories");
+      const response = await fetch("/api/watchlist/strategies");
       if (!response.ok) {
-        console.error("HTTP error loading categories:", response.status, response.statusText);
+        console.error("HTTP error loading strategies:", response.status, response.statusText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const data = await response.json();
-      console.log("Loaded categories:", data);
-      this.categories = data.categories || [];
-      this.displayCategories();
-      this.populateCategoryDropdowns();
+      console.log("Loaded strategies:", data);
+      this.strategies = data.strategies || [];
+      this.displayStrategies();
+      this.populateStrategyDropdowns();
     } catch (error) {
-      console.error("Failed to load categories:", error);
-      this.showError("Failed to load categories: " + error.message);
+      console.error("Failed to load strategies:", error);
+      this.showError("Failed to load strategies: " + error.message);
     }
   }
 
-  displayCategories() {
-    const container = document.getElementById("categories-list");
+  displayStrategies() {
+    const container = document.getElementById("strategies-list");
     
-    if (this.categories.length === 0) {
+    if (this.strategies.length === 0) {
       container.innerHTML = `
         <div class="text-center p-3 text-muted">
           <i class="bi bi-tags opacity-25"></i>
-          <p class="mt-2 small">No categories</p>
+          <p class="mt-2 small">No strategies</p>
           <small>Click + to add one</small>
         </div>
       `;
       return;
     }
 
-    // Add "All Categories" option
+    // Add "All Strategies" option
     let html = `
-      <div class="category-item ${this.selectedCategoryId === null ? 'active' : ''}" 
-           onclick="window.watchlist.selectCategory(null)">
+      <div class="category-item ${this.selectedStrategyId === null ? 'active' : ''}"
+           onclick="window.watchlist.selectStrategy(null)">
         <div class="d-flex align-items-center">
           <span class="category-color-dot" style="background-color: #6c757d;"></span>
-          <span class="small">All Categories</span>
+          <span class="small">All Strategies</span>
         </div>
         <div class="small text-muted">${this.stocks.length} stocks</div>
       </div>
     `;
 
-    // Add individual categories
-    this.categories.forEach(category => {
-      const stockCount = this.stocks.filter(s => s.category_id === category.id).length;
-      const isActive = this.selectedCategoryId === category.id;
+    // Add individual strategies
+    this.strategies.forEach(strategy => {
+      const stockCount = this.stocks.filter(s => s.strategy_id === strategy.id).length;
+      const isActive = this.selectedStrategyId === strategy.id;
       
       html += `
-        <div class="category-item ${isActive ? 'active' : ''}" 
-             onclick="window.watchlist.selectCategory(${category.id})">
+        <div class="category-item ${isActive ? 'active' : ''}"
+             onclick="window.watchlist.selectStrategy(${strategy.id})">
           <div class="d-flex align-items-center justify-content-between">
             <div class="d-flex align-items-center">
-              <span class="category-color-dot" style="background-color: ${category.color};"></span>
-              <span class="small">${category.name}</span>
+              <span class="category-color-dot" style="background-color: ${strategy.color};"></span>
+              <span class="small">${strategy.name}</span>
             </div>
             <div class="d-flex align-items-center">
               <span class="small text-muted me-2">${stockCount}</span>
-              <button class="btn btn-sm text-danger p-0" 
-                      onclick="event.stopPropagation(); window.watchlist.deleteCategory(${category.id})"
-                      title="Delete category">
+              <button class="btn btn-sm text-danger p-0"
+                      onclick="event.stopPropagation(); window.watchlist.deleteStrategy(${strategy.id})"
+                      title="Delete strategy">
                 <i class="bi bi-trash" style="font-size: 10px;"></i>
               </button>
             </div>
           </div>
-          ${category.description ? `<div class="small text-muted mt-1">${category.description}</div>` : ''}
+          ${strategy.description ? `<div class="small text-muted mt-1">${strategy.description}</div>` : ''}
         </div>
       `;
     });
@@ -150,36 +150,36 @@ class WatchlistManager {
     container.innerHTML = html;
   }
 
-  populateCategoryDropdowns() {
-    const dropdowns = ['stock-category', 'edit-stock-category'];
+  populateStrategyDropdowns() {
+    const dropdowns = ['stock-strategy', 'edit-stock-strategy'];
     
     dropdowns.forEach(id => {
       const select = document.getElementById(id);
       if (!select) return;
 
       // Clear existing options except the first one
-      select.innerHTML = '<option value="">No Category</option>';
+      select.innerHTML = '<option value="">No Strategy</option>';
       
-      this.categories.forEach(category => {
+      this.strategies.forEach(strategy => {
         const option = document.createElement('option');
-        option.value = category.id;
-        option.textContent = category.name;
+        option.value = strategy.id;
+        option.textContent = strategy.name;
         select.appendChild(option);
       });
     });
   }
 
-  selectCategory(categoryId) {
-    this.selectedCategoryId = categoryId;
-    this.displayCategories();
+  selectStrategy(strategyId) {
+    this.selectedStrategyId = strategyId;
+    this.displayStrategies();
     this.filterAndDisplayStocks();
     
     // Update title
-    if (categoryId === null) {
+    if (strategyId === null) {
       document.getElementById("watchlist-title").textContent = "All Stocks";
     } else {
-      const category = this.categories.find(c => c.id === categoryId);
-      document.getElementById("watchlist-title").textContent = category ? category.name : "Unknown Category";
+      const strategy = this.strategies.find(s => s.id === strategyId);
+      document.getElementById("watchlist-title").textContent = strategy ? strategy.name : "Unknown Strategy";
     }
   }
 
@@ -205,9 +205,9 @@ class WatchlistManager {
   filterAndDisplayStocks() {
     let filteredStocks = this.stocks;
 
-    // Filter by category
-    if (this.selectedCategoryId !== null) {
-      filteredStocks = filteredStocks.filter(stock => stock.category_id === this.selectedCategoryId);
+    // Filter by strategy
+    if (this.selectedStrategyId !== null) {
+      filteredStocks = filteredStocks.filter(stock => stock.strategy_id === this.selectedStrategyId);
     }
 
     // Filter by search term
@@ -267,10 +267,10 @@ class WatchlistManager {
     const changeClass = stock.change > 0 ? 'price-positive' : stock.change < 0 ? 'price-negative' : 'price-neutral';
     const changeIcon = stock.change > 0 ? 'bi-arrow-up' : stock.change < 0 ? 'bi-arrow-down' : 'bi-dash';
     
-    const categoryBadge = stock.category_name ? 
-      `<span class="category-badge" style="border-color: ${stock.category_color}; color: ${stock.category_color};">
-        ${stock.category_name}
-      </span>` : 
+    const strategyBadge = stock.strategy_name ?
+      `<span class="category-badge" style="border-color: ${stock.strategy_color}; color: ${stock.strategy_color};">
+        ${stock.strategy_name}
+      </span>` :
       '<span class="text-muted small">None</span>';
 
     const tags = stock.tags ? 
@@ -289,7 +289,7 @@ class WatchlistManager {
           <div>${stock.name || stock.symbol}</div>
           ${tags ? `<div class="stock-tags mt-1">${tags}</div>` : ''}
         </td>
-        <td>${categoryBadge}</td>
+        <td>${strategyBadge}</td>
         <td>
           <span class="fw-bold">$${stock.price !== undefined ? stock.price.toFixed(2) : '-'}</span>
         </td>
@@ -355,9 +355,9 @@ class WatchlistManager {
   }
 
   updateStockCount() {
-    const count = this.selectedCategoryId === null ? 
-      this.stocks.length : 
-      this.stocks.filter(s => s.category_id === this.selectedCategoryId).length;
+    const count = this.selectedStrategyId === null ?
+      this.stocks.length :
+      this.stocks.filter(s => s.strategy_id === this.selectedStrategyId).length;
     
     document.getElementById("stock-count").textContent = count;
   }
@@ -370,16 +370,16 @@ class WatchlistManager {
     modal.show();
   }
 
-  openAddCategoryModal() {
-    document.getElementById("add-category-form").reset();
-    const modal = new bootstrap.Modal(document.getElementById("add-category-modal"));
+  openAddStrategyModal() {
+    document.getElementById("add-strategy-form").reset();
+    const modal = new bootstrap.Modal(document.getElementById("add-strategy-modal"));
     modal.show();
   }
 
   async saveStock() {
     const symbol = document.getElementById("stock-symbol").value.trim().toUpperCase();
     const name = document.getElementById("stock-name").value.trim();
-    const categoryId = document.getElementById("stock-category").value || null;
+    const strategyId = document.getElementById("stock-strategy").value || null;
     const tags = document.getElementById("stock-tags").value.trim();
     const notes = document.getElementById("stock-notes").value.trim();
 
@@ -395,7 +395,7 @@ class WatchlistManager {
         body: JSON.stringify({
           symbol,
           name,
-          category_id: categoryId ? parseInt(categoryId) : null,
+          strategy_id: strategyId ? parseInt(strategyId) : null,
           tags,
           notes
         })
@@ -420,18 +420,18 @@ class WatchlistManager {
     }
   }
 
-  async saveCategory() {
-    const name = document.getElementById("category-name").value.trim();
-    const description = document.getElementById("category-description").value.trim();
-    const color = document.getElementById("category-color").value;
+  async saveStrategy() {
+    const name = document.getElementById("strategy-name").value.trim();
+    const description = document.getElementById("strategy-description").value.trim();
+    const color = document.getElementById("strategy-color").value;
 
     if (!name) {
-      this.showError("Category name is required");
+      this.showError("Strategy name is required");
       return;
     }
 
     try {
-      const response = await fetch("/api/watchlist/categories", {
+      const response = await fetch("/api/watchlist/strategies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description, color })
@@ -439,20 +439,20 @@ class WatchlistManager {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.details || "Failed to create category");
+        throw new Error(error.details || "Failed to create strategy");
       }
 
-      this.showSuccess(`Category "${name}" created`);
+      this.showSuccess(`Strategy "${name}" created`);
       
       // Close modal
-      const modal = bootstrap.Modal.getInstance(document.getElementById("add-category-modal"));
+      const modal = bootstrap.Modal.getInstance(document.getElementById("add-strategy-modal"));
       modal.hide();
       
-      // Reload categories
-      await this.loadCategories();
+      // Reload strategies
+      await this.loadStrategies();
       
     } catch (error) {
-      this.showError("Failed to create category: " + error.message);
+      this.showError("Failed to create strategy: " + error.message);
     }
   }
 
@@ -464,7 +464,7 @@ class WatchlistManager {
     document.getElementById("edit-stock-id").value = stock.id;
     document.getElementById("edit-stock-symbol").value = stock.symbol;
     document.getElementById("edit-stock-name").value = stock.name || '';
-    document.getElementById("edit-stock-category").value = stock.category_id || '';
+    document.getElementById("edit-stock-strategy").value = stock.strategy_id || '';
     document.getElementById("edit-stock-tags").value = stock.tags || '';
     document.getElementById("edit-stock-notes").value = stock.notes || '';
 
@@ -476,7 +476,7 @@ class WatchlistManager {
   async updateStock() {
     const id = document.getElementById("edit-stock-id").value;
     const name = document.getElementById("edit-stock-name").value.trim();
-    const categoryId = document.getElementById("edit-stock-category").value || null;
+    const strategyId = document.getElementById("edit-stock-strategy").value || null;
     const tags = document.getElementById("edit-stock-tags").value.trim();
     const notes = document.getElementById("edit-stock-notes").value.trim();
 
@@ -486,7 +486,7 @@ class WatchlistManager {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          category_id: categoryId ? parseInt(categoryId) : null,
+          strategy_id: strategyId ? parseInt(strategyId) : null,
           tags,
           notes
         })
@@ -535,63 +535,63 @@ class WatchlistManager {
     }
   }
 
-  async deleteCategory(id) {
-    const category = this.categories.find(c => c.id === id);
-    if (!category) return;
+  async deleteStrategy(id) {
+    const strategy = this.strategies.find(s => s.id === id);
+    if (!strategy) return;
 
-    // Store category data for potential restoration
-    const categoryData = { ...category };
+    // Store strategy data for potential restoration
+    const strategyData = { ...strategy };
 
     try {
-      const response = await fetch(`/api/watchlist/categories/${id}`, {
+      const response = await fetch(`/api/watchlist/strategies/${id}`, {
         method: "DELETE"
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.details || "Failed to delete category");
+        throw new Error(error.details || "Failed to delete strategy");
       }
 
       // Show success message with undo option
-      this.showUndoableSuccess(`Category "${category.name}" deleted`, () => {
-        this.restoreCategory(categoryData);
+      this.showUndoableSuccess(`Strategy "${strategy.name}" deleted`, () => {
+        this.restoreStrategy(strategyData);
       });
       
-      // If the deleted category was selected, select "All Categories"
-      if (this.selectedCategoryId === id) {
-        this.selectedCategoryId = null;
+      // If the deleted strategy was selected, select "All Strategies"
+      if (this.selectedStrategyId === id) {
+        this.selectedStrategyId = null;
       }
       
-      await this.loadCategories();
+      await this.loadStrategies();
       await this.loadStocks();
       
     } catch (error) {
-      this.showError("Failed to delete category: " + error.message);
+      this.showError("Failed to delete strategy: " + error.message);
     }
   }
 
-  async restoreCategory(categoryData) {
+  async restoreStrategy(strategyData) {
     try {
-      const response = await fetch("/api/watchlist/categories", {
+      const response = await fetch("/api/watchlist/strategies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: categoryData.name,
-          description: categoryData.description,
-          color: categoryData.color
+          name: strategyData.name,
+          description: strategyData.description,
+          color: strategyData.color
         })
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.details || "Failed to restore category");
+        throw new Error(error.details || "Failed to restore strategy");
       }
 
-      this.showSuccess(`Category "${categoryData.name}" restored`);
-      await this.loadCategories();
+      this.showSuccess(`Strategy "${strategyData.name}" restored`);
+      await this.loadStrategies();
       
     } catch (error) {
-      this.showError("Failed to restore category: " + error.message);
+      this.showError("Failed to restore strategy: " + error.message);
     }
   }
 

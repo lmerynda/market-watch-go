@@ -27,10 +27,10 @@
                     <button class="btn btn-outline-success me-2" id="add-stock-btn">
                         <i class="bi bi-plus-circle"></i> Add Stock
                     </button>
-                    <button class="btn btn-outline-primary me-2" id="manage-categories-btn">
-                        <i class="bi bi-tags"></i> Categories
+                    <button class="btn btn-outline-primary me-2" id="manage-strategies-btn">
+                        <i class="bi bi-tags"></i> Strategies
                     </button>
-                    <a href="/dashboard" class="btn btn-outline-secondary">
+                    <a href="/" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Back to Dashboard
                     </a>
                 </div>
@@ -39,21 +39,21 @@
 
         <!-- Main Content -->
         <div class="row h-100">
-            <!-- Categories Sidebar -->
+            <!-- Strategies Sidebar -->
             <div class="col-lg-2 h-100 p-0">
                 <div class="card h-100 rounded-0">
                     <div class="card-header p-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0 small">
-                                <i class="bi bi-tags me-1"></i>Categories
+                                <i class="bi bi-tags me-1"></i>Strategies
                             </h6>
-                            <button class="btn btn-sm btn-outline-primary" id="add-category-btn">
+                            <button class="btn btn-sm btn-outline-primary" id="add-strategy-btn">
                                 <i class="bi bi-plus"></i>
                             </button>
                         </div>
                     </div>
                     <div class="card-body p-0">
-                        <div id="categories-list" class="overflow-auto" style="height: calc(100vh - 120px);">
+                        <div id="strategies-list" class="overflow-auto" style="height: calc(100vh - 120px);">
                             <div class="text-center p-3 text-muted">
                                 <div class="spinner-border spinner-border-sm me-1"></div>
                                 <small>Loading...</small>
@@ -114,7 +114,7 @@
                                     <tr>
                                         <th>Symbol</th>
                                         <th>Name</th>
-                                        <th>Category</th>
+                                        <th>Strategy</th>
                                         <th>Price</th>
                                         <th>EMA 9</th>
                                         <th>EMA 50</th>
@@ -161,9 +161,9 @@
                             <input type="text" class="form-control" id="stock-name" placeholder="e.g., Apple Inc.">
                         </div>
                         <div class="mb-3">
-                            <label for="stock-category" class="form-label">Category</label>
-                            <select class="form-select" id="stock-category">
-                                <option value="">No Category</option>
+                            <label for="stock-strategy" class="form-label">Strategy</label>
+                            <select class="form-select" id="stock-strategy">
+                                <option value="">No Strategy</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -209,9 +209,9 @@
                             <input type="text" class="form-control" id="edit-stock-name">
                         </div>
                         <div class="mb-3">
-                            <label for="edit-stock-category" class="form-label">Category</label>
-                            <select class="form-select" id="edit-stock-category">
-                                <option value="">No Category</option>
+                            <label for="edit-stock-strategy" class="form-label">Strategy</label>
+                            <select class="form-select" id="edit-stock-strategy">
+                                <option value="">No Strategy</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -235,35 +235,35 @@
         </div>
     </div>
 
-    <!-- Add Category Modal -->
-    <div class="modal fade" id="add-category-modal" tabindex="-1">
+    <!-- Add Strategy Modal -->
+    <div class="modal fade" id="add-strategy-modal" tabindex="-1">
         <div class="modal-dialog modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Category</h5>
+                    <h5 class="modal-title">Add Strategy</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="add-category-form">
+                    <form id="add-strategy-form">
                         <div class="mb-3">
-                            <label for="category-name" class="form-label">Name *</label>
-                            <input type="text" class="form-control" id="category-name" required>
+                            <label for="strategy-name" class="form-label">Name *</label>
+                            <input type="text" class="form-control" id="strategy-name" required>
                         </div>
                         <div class="mb-3">
-                            <label for="category-description" class="form-label">Description</label>
-                            <input type="text" class="form-control" id="category-description">
+                            <label for="strategy-description" class="form-label">Description</label>
+                            <input type="text" class="form-control" id="strategy-description">
                         </div>
                         <div class="mb-3">
-                            <label for="category-color" class="form-label">Color</label>
-                            <input type="color" class="form-control form-control-color" id="category-color"
+                            <label for="strategy-color" class="form-label">Color</label>
+                            <input type="color" class="form-control form-control-color" id="strategy-color"
                                 value="#007bff">
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="save-category-btn">
-                        <i class="bi bi-plus"></i> Add Category
+                    <button type="button" class="btn btn-primary" id="save-strategy-btn">
+                        <i class="bi bi-plus"></i> Add Strategy
                     </button>
                 </div>
             </div>
@@ -290,13 +290,13 @@
         });
     </script>
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-          // ...existing code...
-          const wm = new WatchlistManager();
-          // ...existing code...
-          document.getElementById("refresh-prices-btn").addEventListener("click", () => wm.refreshPrices());
-          // Optionally trigger refresh on page load:
-          // wm.refreshPrices();
+        document.addEventListener("DOMContentLoaded", function () {
+            // ...existing code...
+            const wm = new WatchlistManager();
+            // ...existing code...
+            document.getElementById("refresh-prices-btn").addEventListener("click", () => wm.refreshPrices());
+            // Optionally trigger refresh on page load:
+            // wm.refreshPrices();
         });
     </script>
 </body>
