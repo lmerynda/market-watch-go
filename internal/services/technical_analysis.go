@@ -164,7 +164,7 @@ func (tas *TechnicalAnalysisService) GetIndicators(symbol string) (*models.Techn
 
 	// Calculate MACD
 	if len(closes) >= 26 {
-		macd, signal, histogram := tas.calculateMACD(closes, 12, 26, 9)
+		macd, signal, histogram := tas.calculateMACD(closes, 12, 26)
 		indicators.MACD = macd
 		indicators.MACDSignal = signal
 		indicators.MACDHistogram = histogram
@@ -248,7 +248,7 @@ func (tas *TechnicalAnalysisService) calculateRSI(prices []float64, period int) 
 }
 
 // calculateMACD calculates MACD, Signal, and Histogram
-func (tas *TechnicalAnalysisService) calculateMACD(prices []float64, fast, slow, signal int) (float64, float64, float64) {
+func (tas *TechnicalAnalysisService) calculateMACD(prices []float64, fast, slow int) (float64, float64, float64) {
 	if len(prices) < slow {
 		return 0, 0, 0
 	}

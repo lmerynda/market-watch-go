@@ -64,7 +64,7 @@ func (hsds *HeadShouldersDetectionService) DetectInverseHeadShoulders(symbol str
 	peaks, troughs := hsds.findPeaksAndTroughs(priceData)
 
 	// Analyze for inverse head and shoulders pattern
-	pattern := hsds.analyzeInverseHeadShouldersPattern(symbol, priceData, peaks, troughs)
+	pattern := hsds.analyzeInverseHeadShouldersPattern(symbol, peaks, troughs)
 	if pattern == nil {
 		return nil, fmt.Errorf("no valid inverse head and shoulders pattern found")
 	}
@@ -163,7 +163,7 @@ func (hsds *HeadShouldersDetectionService) calculateVolumeRatio(priceData []*mod
 }
 
 // analyzeInverseHeadShouldersPattern analyzes price data for inverse head and shoulders pattern
-func (hsds *HeadShouldersDetectionService) analyzeInverseHeadShouldersPattern(symbol string, priceData []*models.PriceData, peaks, troughs []models.PatternPoint) *models.HeadShouldersPattern {
+func (hsds *HeadShouldersDetectionService) analyzeInverseHeadShouldersPattern(symbol string, peaks, troughs []models.PatternPoint) *models.HeadShouldersPattern {
 	if len(troughs) < 3 || len(peaks) < 2 {
 		return nil
 	}

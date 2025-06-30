@@ -71,7 +71,7 @@ func (srs *SupportResistanceService) DetectSupportResistanceLevels(symbol string
 	potentialLevels := srs.clusterPivotsIntoLevels(pivots)
 
 	// Step 3: Validate and score levels
-	validatedLevels := srs.validateAndScoreLevels(symbol, potentialLevels, priceData)
+	validatedLevels := srs.validateAndScoreLevels(potentialLevels, priceData)
 
 	// Step 4: Update database with new/updated levels
 	err = srs.updateSRLevelsInDatabase(symbol, validatedLevels)
@@ -254,7 +254,7 @@ func (srs *SupportResistanceService) createLevelFromCluster(cluster []*models.Pi
 }
 
 // validateAndScoreLevels validates potential levels and calculates strength scores
-func (srs *SupportResistanceService) validateAndScoreLevels(symbol string, potentialLevels []*models.SupportResistanceLevel, priceData []*models.PriceData) []*models.SupportResistanceLevel {
+func (srs *SupportResistanceService) validateAndScoreLevels(potentialLevels []*models.SupportResistanceLevel, priceData []*models.PriceData) []*models.SupportResistanceLevel {
 	var validatedLevels []*models.SupportResistanceLevel
 
 	for _, level := range potentialLevels {

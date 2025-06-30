@@ -100,7 +100,7 @@ func (fwds *FallingWedgeDetectionService) analyzeFallingWedgePattern(symbol stri
 				for l := k + 1; l < len(lows); l++ {
 					lowerLine := []models.PatternPoint{lows[k], lows[l]}
 
-					if fwds.isValidFallingWedge(upperLine, lowerLine, priceData) {
+					if fwds.isValidFallingWedge(upperLine, lowerLine) {
 						pattern := fwds.buildFallingWedgePattern(symbol, upperLine, lowerLine, priceData)
 						if pattern != nil {
 							return pattern
@@ -192,7 +192,7 @@ func (fwds *FallingWedgeDetectionService) calculateVolumeRatio(priceData []*mode
 }
 
 // isValidFallingWedge checks if the given lines form a valid falling wedge
-func (fwds *FallingWedgeDetectionService) isValidFallingWedge(upperLine, lowerLine []models.PatternPoint, priceData []*models.PriceData) bool {
+func (fwds *FallingWedgeDetectionService) isValidFallingWedge(upperLine, lowerLine []models.PatternPoint) bool {
 	if len(upperLine) != 2 || len(lowerLine) != 2 {
 		return false
 	}
@@ -353,43 +353,4 @@ func (fwds *FallingWedgeDetectionService) evaluateInitialThesis(pattern *models.
 	// This would be implemented based on the thesis structure
 	// For now, mark pattern formation as complete
 	log.Printf("Initial thesis evaluation completed for falling wedge pattern %s", pattern.Symbol)
-}
-
-// calculatePatternQuality calculates the overall quality score for the pattern
-func (fwds *FallingWedgeDetectionService) calculatePatternQuality(pattern *models.FallingWedgePattern) float64 {
-	score := 0.0
-
-	// Convergence score (0-25 points)
-	convergenceScore := math.Min(25.0, pattern.Convergence*2.5) // Max 25 points at 10% convergence
-	score += convergenceScore
-
-	// Volume profile score (0-20 points)
-	volumeScore := 0.0
-	switch pattern.VolumeProfile {
-	case "decreasing":
-		volumeScore = 20.0 // Perfect for falling wedge
-	case "stable":
-		volumeScore = 10.0
-	case "increasing":
-		volumeScore = 5.0
-	}
-	score += volumeScore
-
-	// Pattern duration score (0-15 points)
-	durationHours := float64(pattern.PatternWidth) / 60.0
-	idealDuration := 240.0 // 10 days
-	durationScore := math.Max(0, 15.0-(math.Abs(durationHours-idealDuration)/idealDuration)*15.0)
-	score += durationScore
-
-	// Height/volatility score (0-20 points)
-	heightPercent := (pattern.PatternHeight / pattern.BreakoutLevel) * 100
-	heightScore := math.Min(20.0, heightPercent*2) // Max 20 points at 10% height
-	score += heightScore
-
-	// Slope convergence score (0-20 points)
-	slopeDifference := math.Abs(pattern.UpperSlope - pattern.LowerSlope)
-	slopeScore := math.Min(20.0, slopeDifference*100) // Good convergence gives higher score
-	score += slopeScore
-
-	return math.Min(100.0, score)
 }

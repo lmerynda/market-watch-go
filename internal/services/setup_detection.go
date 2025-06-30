@@ -79,9 +79,9 @@ func (sds *SetupDetectionService) DetectSetups(symbol string) (*models.SetupDete
 	}
 
 	// Detect different types of setups
-	supportBounceSetups := sds.detectSupportBounceSetups(symbol, currentPrice, srAnalysis, indicators)
-	resistanceBounceSetups := sds.detectResistanceBounceSetups(symbol, currentPrice, srAnalysis, indicators)
-	breakoutSetups := sds.detectBreakoutSetups(symbol, currentPrice, srAnalysis, indicators)
+	supportBounceSetups := sds.detectSupportBounceSetups(symbol, currentPrice, srAnalysis)
+	resistanceBounceSetups := sds.detectResistanceBounceSetups(symbol, currentPrice, srAnalysis)
+	breakoutSetups := sds.detectBreakoutSetups(symbol, currentPrice, srAnalysis)
 
 	// Combine all detected setups
 	allSetups := append(supportBounceSetups, resistanceBounceSetups...)
@@ -89,7 +89,7 @@ func (sds *SetupDetectionService) DetectSetups(symbol string) (*models.SetupDete
 
 	// Score and validate setups
 	for _, setup := range allSetups {
-		err := sds.scoreSetup(setup, srAnalysis, indicators)
+		err := sds.scoreSetup(setup, indicators)
 		if err != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("Failed to score setup %s: %v", setup.SetupType, err))
 			continue
@@ -112,7 +112,7 @@ func (sds *SetupDetectionService) DetectSetups(symbol string) (*models.SetupDete
 }
 
 // detectSupportBounceSetups identifies potential support bounce setups
-func (sds *SetupDetectionService) detectSupportBounceSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult, indicators *models.TechnicalIndicators) []*models.TradingSetup {
+func (sds *SetupDetectionService) detectSupportBounceSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult) []*models.TradingSetup {
 	var setups []*models.TradingSetup
 
 	for _, supportLevel := range srAnalysis.SupportLevels {
@@ -151,7 +151,7 @@ func (sds *SetupDetectionService) detectSupportBounceSetups(symbol string, curre
 }
 
 // detectResistanceBounceSetups identifies potential resistance bounce setups
-func (sds *SetupDetectionService) detectResistanceBounceSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult, indicators *models.TechnicalIndicators) []*models.TradingSetup {
+func (sds *SetupDetectionService) detectResistanceBounceSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult) []*models.TradingSetup {
 	var setups []*models.TradingSetup
 
 	for _, resistanceLevel := range srAnalysis.ResistanceLevels {
@@ -190,7 +190,7 @@ func (sds *SetupDetectionService) detectResistanceBounceSetups(symbol string, cu
 }
 
 // detectBreakoutSetups identifies potential breakout setups
-func (sds *SetupDetectionService) detectBreakoutSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult, indicators *models.TechnicalIndicators) []*models.TradingSetup {
+func (sds *SetupDetectionService) detectBreakoutSetups(symbol string, currentPrice float64, srAnalysis *models.SRAnalysisResult) []*models.TradingSetup {
 	var setups []*models.TradingSetup
 
 	// Check for resistance breakouts
@@ -330,9 +330,9 @@ func (sds *SetupDetectionService) setTargetLevels(setup *models.TradingSetup, sr
 }
 
 // scoreSetup calculates the quality score for a setup
-func (sds *SetupDetectionService) scoreSetup(setup *models.TradingSetup, srAnalysis *models.SRAnalysisResult, indicators *models.TechnicalIndicators) error {
+func (sds *SetupDetectionService) scoreSetup(setup *models.TradingSetup, indicators *models.TechnicalIndicators) error {
 	// Create and populate checklist
-	checklist := sds.createSetupChecklist(setup, srAnalysis, indicators)
+	checklist := sds.createSetupChecklist(setup, indicators)
 	setup.Checklist = checklist
 
 	// Calculate component scores
@@ -354,7 +354,7 @@ func (sds *SetupDetectionService) scoreSetup(setup *models.TradingSetup, srAnaly
 }
 
 // createSetupChecklist creates and evaluates a checklist for a setup
-func (sds *SetupDetectionService) createSetupChecklist(setup *models.TradingSetup, srAnalysis *models.SRAnalysisResult, indicators *models.TechnicalIndicators) *models.SetupChecklist {
+func (sds *SetupDetectionService) createSetupChecklist(setup *models.TradingSetup, indicators *models.TechnicalIndicators) *models.SetupChecklist {
 	checklist := &models.SetupChecklist{
 		SetupID: setup.ID,
 	}
@@ -363,7 +363,7 @@ func (sds *SetupDetectionService) createSetupChecklist(setup *models.TradingSetu
 	sds.initializeChecklistItems(checklist)
 
 	// Evaluate each criterion
-	sds.evaluatePriceActionCriteria(checklist, setup, srAnalysis)
+	sds.evaluatePriceActionCriteria(checklist, setup)
 	sds.evaluateVolumeCriteria(checklist, setup, indicators)
 	sds.evaluateTechnicalCriteria(checklist, setup, indicators)
 	sds.evaluateRiskManagementCriteria(checklist, setup)
@@ -406,7 +406,7 @@ func (sds *SetupDetectionService) initializeChecklistItems(checklist *models.Set
 }
 
 // evaluatePriceActionCriteria evaluates price action related criteria
-func (sds *SetupDetectionService) evaluatePriceActionCriteria(checklist *models.SetupChecklist, setup *models.TradingSetup, srAnalysis *models.SRAnalysisResult) {
+func (sds *SetupDetectionService) evaluatePriceActionCriteria(checklist *models.SetupChecklist, setup *models.TradingSetup) {
 	keyLevel := setup.KeyLevel
 	if keyLevel == nil {
 		return
