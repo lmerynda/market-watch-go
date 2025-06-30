@@ -13,14 +13,14 @@ import (
 
 // FallingWedgeDetectionService handles falling wedge pattern detection and monitoring
 type FallingWedgeDetectionService struct {
-	db           *database.DB
+	db           *database.Database
 	taService    *TechnicalAnalysisService
 	emailService *EmailService
 	config       *models.FallingWedgeConfig
 }
 
 // NewFallingWedgeDetectionService creates a new falling wedge detection service
-func NewFallingWedgeDetectionService(db *database.DB, taService *TechnicalAnalysisService, emailService *EmailService) *FallingWedgeDetectionService {
+func NewFallingWedgeDetectionService(db *database.Database, taService *TechnicalAnalysisService, emailService *EmailService) *FallingWedgeDetectionService {
 	// FIXED: Adjusted configuration for falling wedge patterns
 	config := &models.FallingWedgeConfig{
 		MinPatternDuration:  48 * time.Hour,  // 2 days minimum

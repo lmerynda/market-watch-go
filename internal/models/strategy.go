@@ -2,8 +2,8 @@ package models
 
 import "time"
 
-// WatchlistCategory represents a category for organizing stocks
-type WatchlistCategory struct {
+// Strategy represents a trading strategy (formerly category)
+type Strategy struct {
 	ID          int       `json:"id" db:"id"`
 	Name        string    `json:"name" db:"name"`
 	Description string    `json:"description" db:"description"`
@@ -12,14 +12,12 @@ type WatchlistCategory struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// WatchlistStock represents a stock in the watchlist
-type WatchlistStock struct {
+// Stock represents a centralized stock in the watchlist
+type Stock struct {
 	ID            int       `json:"id" db:"id"`
 	Symbol        string    `json:"symbol" db:"symbol"`
 	Name          string    `json:"name" db:"name"`
-	CategoryID    *int      `json:"category_id" db:"category_id"`
 	Notes         string    `json:"notes" db:"notes"`
-	Tags          string    `json:"tags" db:"tags"` // Comma-separated tags
 	Price         float64   `json:"price" db:"price"`
 	Change        float64   `json:"change" db:"change"`
 	ChangePercent float64   `json:"change_percent" db:"change_percent"`
@@ -31,7 +29,24 @@ type WatchlistStock struct {
 	EMA50         float64   `json:"ema_50" db:"ema_50"`
 	EMA200        float64   `json:"ema_200" db:"ema_200"`
 
-	// Joined data
-	CategoryName  string `json:"category_name,omitempty" db:"category_name"`
-	CategoryColor string `json:"category_color,omitempty" db:"category_color"`
+	// Associated strategies (tags)
+	Strategies []Strategy `json:"strategies,omitempty"`
+}
+
+// StockStrategy represents the many-to-many relationship between stocks and strategies
+type StockStrategy struct {
+	ID         int       `json:"id" db:"id"`
+	StockID    int       `json:"stock_id" db:"stock_id"`
+	StrategyID int       `json:"strategy_id" db:"strategy_id"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+}
+
+// WatchlistSummaryV2 represents summary data for the new strategy-based watchlist
+type WatchlistSummaryV2 struct {
+	TotalStocks     int        `json:"total_stocks"`
+	TotalStrategies int        `json:"total_strategies"`
+	Strategies      []Strategy `json:"strategies"`
+	RecentlyAdded   []Stock    `json:"recently_added"`
+	TopGainers      []Stock    `json:"top_gainers"`
+	TopLosers       []Stock    `json:"top_losers"`
 }

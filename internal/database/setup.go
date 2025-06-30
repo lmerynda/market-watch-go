@@ -1,15 +1,13 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
-	"time"
 
 	"market-watch-go/internal/models"
 )
 
 // CreateSetupTables creates all setup related tables
-func (db *DB) CreateSetupTables() error {
+func (db *Database) CreateSetupTables() error {
 	tables := []string{
 		// Trading Setups table
 		`CREATE TABLE IF NOT EXISTS trading_setups (
@@ -169,385 +167,8 @@ func (db *DB) CreateSetupTables() error {
 	return nil
 }
 
-// InsertTradingSetup inserts a new trading setup
-func (db *DB) InsertTradingSetup(setup *models.TradingSetup) error {
-	query := `
-		INSERT INTO trading_setups 
-		(symbol, setup_type, direction, quality_score, confidence, status, detected_at, expires_at,
-		 current_price, entry_price, stop_loss, target1, target2, target3,
-		 risk_amount, reward_potential, risk_reward_ratio,
-		 price_action_score, volume_score, technical_score, risk_reward_score,
-		 notes, is_manual, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	result, err := db.conn.Exec(query,
-		setup.Symbol, setup.SetupType, setup.Direction, setup.QualityScore, setup.Confidence,
-		setup.Status, setup.DetectedAt, setup.ExpiresAt, setup.CurrentPrice, setup.EntryPrice,
-		setup.StopLoss, setup.Target1, setup.Target2, setup.Target3, setup.RiskAmount,
-		setup.RewardPotential, setup.RiskRewardRatio, setup.PriceActionScore, setup.VolumeScore,
-		setup.TechnicalScore, setup.RiskRewardScore, setup.Notes, setup.IsManual,
-		setup.CreatedAt, setup.UpdatedAt,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to insert trading setup: %w", err)
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return fmt.Errorf("failed to get trading setup ID: %w", err)
-	}
-
-	setup.ID = id
-
-	// Insert checklist if present
-	if setup.Checklist != nil {
-		setup.Checklist.SetupID = setup.ID
-		err = db.InsertSetupChecklist(setup.Checklist)
-		if err != nil {
-			return fmt.Errorf("failed to insert setup checklist: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// UpdateTradingSetup updates an existing trading setup
-func (db *DB) UpdateTradingSetup(setup *models.TradingSetup) error {
-	query := `
-		UPDATE trading_setups 
-		SET quality_score = ?, confidence = ?, status = ?, last_updated = ?,
-		    current_price = ?, risk_amount = ?, reward_potential = ?, risk_reward_ratio = ?,
-		    price_action_score = ?, volume_score = ?, technical_score = ?, risk_reward_score = ?,
-		    notes = ?, updated_at = ?
-		WHERE id = ?
-	`
-
-	setup.UpdatedAt = time.Now()
-	setup.LastUpdated = setup.UpdatedAt
-
-	_, err := db.conn.Exec(query,
-		setup.QualityScore, setup.Confidence, setup.Status, setup.LastUpdated,
-		setup.CurrentPrice, setup.RiskAmount, setup.RewardPotential, setup.RiskRewardRatio,
-		setup.PriceActionScore, setup.VolumeScore, setup.TechnicalScore, setup.RiskRewardScore,
-		setup.Notes, setup.UpdatedAt, setup.ID,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to update trading setup: %w", err)
-	}
-
-	// Update checklist if present
-	if setup.Checklist != nil {
-		err = db.UpdateSetupChecklist(setup.Checklist)
-		if err != nil {
-			return fmt.Errorf("failed to update setup checklist: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// GetTradingSetups retrieves trading setups based on filter criteria
-func (db *DB) GetTradingSetups(filter *models.SetupFilter) ([]*models.TradingSetup, error) {
-	query := `
-		SELECT id, symbol, setup_type, direction, quality_score, confidence, status,
-		       detected_at, expires_at, last_updated, current_price, entry_price, stop_loss,
-		       target1, target2, target3, risk_amount, reward_potential, risk_reward_ratio,
-		       price_action_score, volume_score, technical_score, risk_reward_score,
-		       notes, is_manual, created_at, updated_at
-		FROM trading_setups 
-		WHERE 1=1
-	`
-	args := []interface{}{}
-
-	// Add optional filters
-	if filter.Symbol != "" {
-		query += " AND symbol = ?"
-		args = append(args, filter.Symbol)
-	}
-
-	if filter.SetupType != "" {
-		query += " AND setup_type = ?"
-		args = append(args, filter.SetupType)
-	}
-
-	if filter.Direction != "" {
-		query += " AND direction = ?"
-		args = append(args, filter.Direction)
-	}
-
-	if filter.Status != "" {
-		query += " AND status = ?"
-		args = append(args, filter.Status)
-	}
-
-	if filter.Confidence != "" {
-		query += " AND confidence = ?"
-		args = append(args, filter.Confidence)
-	}
-
-	if filter.MinQualityScore > 0 {
-		query += " AND quality_score >= ?"
-		args = append(args, filter.MinQualityScore)
-	}
-
-	if filter.MaxQualityScore > 0 {
-		query += " AND quality_score <= ?"
-		args = append(args, filter.MaxQualityScore)
-	}
-
-	if filter.IsActive != nil {
-		if *filter.IsActive {
-			query += " AND status = 'active' AND expires_at > datetime('now')"
-		} else {
-			query += " AND (status != 'active' OR expires_at <= datetime('now'))"
-		}
-	}
-
-	// Order by quality score descending
-	query += " ORDER BY quality_score DESC, detected_at DESC"
-
-	if filter.Limit > 0 {
-		query += " LIMIT ?"
-		args = append(args, filter.Limit)
-	}
-
-	if filter.Offset > 0 {
-		query += " OFFSET ?"
-		args = append(args, filter.Offset)
-	}
-
-	rows, err := db.conn.Query(query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query trading setups: %w", err)
-	}
-	defer rows.Close()
-
-	var setups []*models.TradingSetup
-	for rows.Next() {
-		setup := &models.TradingSetup{}
-		err := rows.Scan(
-			&setup.ID, &setup.Symbol, &setup.SetupType, &setup.Direction,
-			&setup.QualityScore, &setup.Confidence, &setup.Status,
-			&setup.DetectedAt, &setup.ExpiresAt, &setup.LastUpdated,
-			&setup.CurrentPrice, &setup.EntryPrice, &setup.StopLoss,
-			&setup.Target1, &setup.Target2, &setup.Target3,
-			&setup.RiskAmount, &setup.RewardPotential, &setup.RiskRewardRatio,
-			&setup.PriceActionScore, &setup.VolumeScore, &setup.TechnicalScore,
-			&setup.RiskRewardScore, &setup.Notes, &setup.IsManual,
-			&setup.CreatedAt, &setup.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan trading setup: %w", err)
-		}
-
-		// Load checklist
-		checklist, err := db.GetSetupChecklist(setup.ID)
-		if err == nil {
-			setup.Checklist = checklist
-		}
-
-		setups = append(setups, setup)
-	}
-
-	return setups, nil
-}
-
-// InsertSetupChecklist inserts a setup checklist
-func (db *DB) InsertSetupChecklist(checklist *models.SetupChecklist) error {
-	query := `
-		INSERT INTO setup_checklists 
-		(setup_id, min_level_touches_completed, min_level_touches_points,
-		 bounce_strength_completed, bounce_strength_points,
-		 time_at_level_completed, time_at_level_points,
-		 rejection_candle_completed, rejection_candle_points,
-		 level_duration_completed, level_duration_points,
-		 volume_spike_completed, volume_spike_points,
-		 volume_confirmation_completed, volume_confirmation_points,
-		 approach_volume_completed, approach_volume_points,
-		 vwap_relationship_completed, vwap_relationship_points,
-		 relative_volume_completed, relative_volume_points,
-		 rsi_condition_completed, rsi_condition_points,
-		 moving_average_completed, moving_average_points,
-		 macd_signal_completed, macd_signal_points,
-		 momentum_divergence_completed, momentum_divergence_points,
-		 bollinger_bands_completed, bollinger_bands_points,
-		 stop_loss_defined_completed, stop_loss_defined_points,
-		 risk_reward_ratio_completed, risk_reward_ratio_points,
-		 position_size_completed, position_size_points,
-		 entry_precision_completed, entry_precision_points,
-		 exit_strategy_completed, exit_strategy_points,
-		 total_score, completed_items, total_items, completion_percent, last_updated)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err := db.conn.Exec(query,
-		checklist.SetupID,
-		checklist.MinLevelTouches.IsCompleted, checklist.MinLevelTouches.Points,
-		checklist.BounceStrength.IsCompleted, checklist.BounceStrength.Points,
-		checklist.TimeAtLevel.IsCompleted, checklist.TimeAtLevel.Points,
-		checklist.RejectionCandle.IsCompleted, checklist.RejectionCandle.Points,
-		checklist.LevelDuration.IsCompleted, checklist.LevelDuration.Points,
-		checklist.VolumeSpike.IsCompleted, checklist.VolumeSpike.Points,
-		checklist.VolumeConfirmation.IsCompleted, checklist.VolumeConfirmation.Points,
-		checklist.ApproachVolume.IsCompleted, checklist.ApproachVolume.Points,
-		checklist.VWAPRelationship.IsCompleted, checklist.VWAPRelationship.Points,
-		checklist.RelativeVolume.IsCompleted, checklist.RelativeVolume.Points,
-		checklist.RSICondition.IsCompleted, checklist.RSICondition.Points,
-		checklist.MovingAverage.IsCompleted, checklist.MovingAverage.Points,
-		checklist.MACDSignal.IsCompleted, checklist.MACDSignal.Points,
-		checklist.MomentumDivergence.IsCompleted, checklist.MomentumDivergence.Points,
-		checklist.BollingerBands.IsCompleted, checklist.BollingerBands.Points,
-		checklist.StopLossDefined.IsCompleted, checklist.StopLossDefined.Points,
-		checklist.RiskRewardRatio.IsCompleted, checklist.RiskRewardRatio.Points,
-		checklist.PositionSize.IsCompleted, checklist.PositionSize.Points,
-		checklist.EntryPrecision.IsCompleted, checklist.EntryPrecision.Points,
-		checklist.ExitStrategy.IsCompleted, checklist.ExitStrategy.Points,
-		checklist.TotalScore, checklist.CompletedItems, checklist.TotalItems,
-		checklist.CompletionPercent, checklist.LastUpdated,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to insert setup checklist: %w", err)
-	}
-
-	return nil
-}
-
-// UpdateSetupChecklist updates a setup checklist
-func (db *DB) UpdateSetupChecklist(checklist *models.SetupChecklist) error {
-	query := `
-		UPDATE setup_checklists 
-		SET min_level_touches_completed = ?, min_level_touches_points = ?,
-		    bounce_strength_completed = ?, bounce_strength_points = ?,
-		    time_at_level_completed = ?, time_at_level_points = ?,
-		    rejection_candle_completed = ?, rejection_candle_points = ?,
-		    level_duration_completed = ?, level_duration_points = ?,
-		    volume_spike_completed = ?, volume_spike_points = ?,
-		    volume_confirmation_completed = ?, volume_confirmation_points = ?,
-		    approach_volume_completed = ?, approach_volume_points = ?,
-		    vwap_relationship_completed = ?, vwap_relationship_points = ?,
-		    relative_volume_completed = ?, relative_volume_points = ?,
-		    rsi_condition_completed = ?, rsi_condition_points = ?,
-		    moving_average_completed = ?, moving_average_points = ?,
-		    macd_signal_completed = ?, macd_signal_points = ?,
-		    momentum_divergence_completed = ?, momentum_divergence_points = ?,
-		    bollinger_bands_completed = ?, bollinger_bands_points = ?,
-		    stop_loss_defined_completed = ?, stop_loss_defined_points = ?,
-		    risk_reward_ratio_completed = ?, risk_reward_ratio_points = ?,
-		    position_size_completed = ?, position_size_points = ?,
-		    entry_precision_completed = ?, entry_precision_points = ?,
-		    exit_strategy_completed = ?, exit_strategy_points = ?,
-		    total_score = ?, completed_items = ?, total_items = ?, 
-		    completion_percent = ?, last_updated = ?
-		WHERE setup_id = ?
-	`
-
-	checklist.LastUpdated = time.Now()
-
-	_, err := db.conn.Exec(query,
-		checklist.MinLevelTouches.IsCompleted, checklist.MinLevelTouches.Points,
-		checklist.BounceStrength.IsCompleted, checklist.BounceStrength.Points,
-		checklist.TimeAtLevel.IsCompleted, checklist.TimeAtLevel.Points,
-		checklist.RejectionCandle.IsCompleted, checklist.RejectionCandle.Points,
-		checklist.LevelDuration.IsCompleted, checklist.LevelDuration.Points,
-		checklist.VolumeSpike.IsCompleted, checklist.VolumeSpike.Points,
-		checklist.VolumeConfirmation.IsCompleted, checklist.VolumeConfirmation.Points,
-		checklist.ApproachVolume.IsCompleted, checklist.ApproachVolume.Points,
-		checklist.VWAPRelationship.IsCompleted, checklist.VWAPRelationship.Points,
-		checklist.RelativeVolume.IsCompleted, checklist.RelativeVolume.Points,
-		checklist.RSICondition.IsCompleted, checklist.RSICondition.Points,
-		checklist.MovingAverage.IsCompleted, checklist.MovingAverage.Points,
-		checklist.MACDSignal.IsCompleted, checklist.MACDSignal.Points,
-		checklist.MomentumDivergence.IsCompleted, checklist.MomentumDivergence.Points,
-		checklist.BollingerBands.IsCompleted, checklist.BollingerBands.Points,
-		checklist.StopLossDefined.IsCompleted, checklist.StopLossDefined.Points,
-		checklist.RiskRewardRatio.IsCompleted, checklist.RiskRewardRatio.Points,
-		checklist.PositionSize.IsCompleted, checklist.PositionSize.Points,
-		checklist.EntryPrecision.IsCompleted, checklist.EntryPrecision.Points,
-		checklist.ExitStrategy.IsCompleted, checklist.ExitStrategy.Points,
-		checklist.TotalScore, checklist.CompletedItems, checklist.TotalItems,
-		checklist.CompletionPercent, checklist.LastUpdated, checklist.SetupID,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to update setup checklist: %w", err)
-	}
-
-	return nil
-}
-
-// GetSetupChecklist retrieves a setup checklist by setup ID
-func (db *DB) GetSetupChecklist(setupID int64) (*models.SetupChecklist, error) {
-	query := `
-		SELECT setup_id, min_level_touches_completed, min_level_touches_points,
-		       bounce_strength_completed, bounce_strength_points,
-		       time_at_level_completed, time_at_level_points,
-		       rejection_candle_completed, rejection_candle_points,
-		       level_duration_completed, level_duration_points,
-		       volume_spike_completed, volume_spike_points,
-		       volume_confirmation_completed, volume_confirmation_points,
-		       approach_volume_completed, approach_volume_points,
-		       vwap_relationship_completed, vwap_relationship_points,
-		       relative_volume_completed, relative_volume_points,
-		       rsi_condition_completed, rsi_condition_points,
-		       moving_average_completed, moving_average_points,
-		       macd_signal_completed, macd_signal_points,
-		       momentum_divergence_completed, momentum_divergence_points,
-		       bollinger_bands_completed, bollinger_bands_points,
-		       stop_loss_defined_completed, stop_loss_defined_points,
-		       risk_reward_ratio_completed, risk_reward_ratio_points,
-		       position_size_completed, position_size_points,
-		       entry_precision_completed, entry_precision_points,
-		       exit_strategy_completed, exit_strategy_points,
-		       total_score, completed_items, total_items, completion_percent, last_updated
-		FROM setup_checklists 
-		WHERE setup_id = ?
-	`
-
-	row := db.conn.QueryRow(query, setupID)
-
-	checklist := &models.SetupChecklist{}
-	err := row.Scan(
-		&checklist.SetupID,
-		&checklist.MinLevelTouches.IsCompleted, &checklist.MinLevelTouches.Points,
-		&checklist.BounceStrength.IsCompleted, &checklist.BounceStrength.Points,
-		&checklist.TimeAtLevel.IsCompleted, &checklist.TimeAtLevel.Points,
-		&checklist.RejectionCandle.IsCompleted, &checklist.RejectionCandle.Points,
-		&checklist.LevelDuration.IsCompleted, &checklist.LevelDuration.Points,
-		&checklist.VolumeSpike.IsCompleted, &checklist.VolumeSpike.Points,
-		&checklist.VolumeConfirmation.IsCompleted, &checklist.VolumeConfirmation.Points,
-		&checklist.ApproachVolume.IsCompleted, &checklist.ApproachVolume.Points,
-		&checklist.VWAPRelationship.IsCompleted, &checklist.VWAPRelationship.Points,
-		&checklist.RelativeVolume.IsCompleted, &checklist.RelativeVolume.Points,
-		&checklist.RSICondition.IsCompleted, &checklist.RSICondition.Points,
-		&checklist.MovingAverage.IsCompleted, &checklist.MovingAverage.Points,
-		&checklist.MACDSignal.IsCompleted, &checklist.MACDSignal.Points,
-		&checklist.MomentumDivergence.IsCompleted, &checklist.MomentumDivergence.Points,
-		&checklist.BollingerBands.IsCompleted, &checklist.BollingerBands.Points,
-		&checklist.StopLossDefined.IsCompleted, &checklist.StopLossDefined.Points,
-		&checklist.RiskRewardRatio.IsCompleted, &checklist.RiskRewardRatio.Points,
-		&checklist.PositionSize.IsCompleted, &checklist.PositionSize.Points,
-		&checklist.EntryPrecision.IsCompleted, &checklist.EntryPrecision.Points,
-		&checklist.ExitStrategy.IsCompleted, &checklist.ExitStrategy.Points,
-		&checklist.TotalScore, &checklist.CompletedItems, &checklist.TotalItems,
-		&checklist.CompletionPercent, &checklist.LastUpdated,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to get setup checklist: %w", err)
-	}
-
-	return checklist, nil
-}
-
 // GetSetupSummary calculates summary statistics for setups
-func (db *DB) GetSetupSummary(symbol string) (*models.SetupSummary, error) {
+func (db *Database) GetSetupSummary(symbol string) (*models.SetupSummary, error) {
 	summary := &models.SetupSummary{}
 
 	// Get basic counts and averages
@@ -577,35 +198,11 @@ func (db *DB) GetSetupSummary(symbol string) (*models.SetupSummary, error) {
 		return nil, fmt.Errorf("failed to get setup summary: %w", err)
 	}
 
-	// Get best setup
-	bestSetupQuery := `
-		SELECT id FROM trading_setups 
-		WHERE symbol = ? 
-		ORDER BY quality_score DESC, detected_at DESC 
-		LIMIT 1
-	`
-
-	var bestSetupID int64
-	err = db.conn.QueryRow(bestSetupQuery, symbol).Scan(&bestSetupID)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, fmt.Errorf("failed to get best setup: %w", err)
-	}
-
-	if err == nil {
-		setups, err := db.GetTradingSetups(&models.SetupFilter{
-			Symbol: symbol,
-			Limit:  1,
-		})
-		if err == nil && len(setups) > 0 {
-			summary.BestSetup = setups[0]
-		}
-	}
-
 	return summary, nil
 }
 
 // ExpireOldSetups marks old setups as expired
-func (db *DB) ExpireOldSetups() (int64, error) {
+func (db *Database) ExpireOldSetups() (int64, error) {
 	query := `
 		UPDATE trading_setups 
 		SET status = 'expired', updated_at = CURRENT_TIMESTAMP
@@ -626,7 +223,7 @@ func (db *DB) ExpireOldSetups() (int64, error) {
 }
 
 // CleanupOldSetupData removes old setup data based on retention policy
-func (db *DB) CleanupOldSetupData(days int) (int64, error) {
+func (db *Database) CleanupOldSetupData(days int) (int64, error) {
 	var totalDeleted int64
 
 	// Cleanup old checklists
@@ -666,4 +263,391 @@ func (db *DB) CleanupOldSetupData(days int) (int64, error) {
 	totalDeleted += setupsDeleted
 
 	return totalDeleted, nil
+}
+
+// InsertTradingSetup inserts a new trading setup into the database
+func (db *Database) InsertTradingSetup(setup *models.TradingSetup) error {
+	query := `
+		INSERT INTO trading_setups (
+			symbol, setup_type, direction, quality_score, confidence, status,
+			detected_at, expires_at, current_price, entry_price, stop_loss,
+			target1, target2, target3, risk_amount, reward_potential, risk_reward_ratio,
+			price_action_score, volume_score, technical_score, risk_reward_score, notes, is_manual
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	result, err := db.conn.Exec(
+		query,
+		setup.Symbol, setup.SetupType, setup.Direction, setup.QualityScore, setup.Confidence, setup.Status,
+		setup.DetectedAt, setup.ExpiresAt, setup.CurrentPrice, setup.EntryPrice, setup.StopLoss,
+		setup.Target1, setup.Target2, setup.Target3, setup.RiskAmount, setup.RewardPotential, setup.RiskRewardRatio,
+		setup.PriceActionScore, setup.VolumeScore, setup.TechnicalScore, setup.RiskRewardScore, setup.Notes, setup.IsManual,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to insert trading setup: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get last insert ID: %w", err)
+	}
+
+	setup.ID = id // ID is int64 in the TradingSetup model
+	return nil
+}
+
+// GetTradingSetups retrieves trading setups based on filter criteria
+func (db *Database) GetTradingSetups(filter *models.SetupFilter) ([]*models.TradingSetup, error) {
+	var setups []*models.TradingSetup
+	var args []interface{}
+
+	// Build the query based on filter
+	query := `
+		SELECT 
+			id, symbol, setup_type, direction, quality_score, confidence, status,
+			detected_at, expires_at, last_updated, current_price, entry_price, stop_loss,
+			target1, target2, target3, risk_amount, reward_potential, risk_reward_ratio,
+			price_action_score, volume_score, technical_score, risk_reward_score,
+			notes, is_manual, created_at, updated_at
+		FROM trading_setups
+		WHERE 1=1
+	`
+
+	// Apply filters
+	if filter.Symbol != "" {
+		query += " AND symbol = ?"
+		args = append(args, filter.Symbol)
+	}
+
+	if filter.SetupType != "" {
+		query += " AND setup_type = ?"
+		args = append(args, filter.SetupType)
+	}
+
+	if filter.Direction != "" {
+		query += " AND direction = ?"
+		args = append(args, filter.Direction)
+	}
+
+	if filter.Status != "" {
+		query += " AND status = ?"
+		args = append(args, filter.Status)
+	}
+
+	if filter.Confidence != "" {
+		query += " AND confidence = ?"
+		args = append(args, filter.Confidence)
+	}
+
+	if filter.MinQualityScore > 0 {
+		query += " AND quality_score >= ?"
+		args = append(args, filter.MinQualityScore)
+	}
+
+	if filter.IsActive != nil && *filter.IsActive {
+		query += " AND status = 'active' AND expires_at > datetime('now')"
+	}
+
+	// Order by quality score descending
+	query += " ORDER BY quality_score DESC"
+
+	// Apply limit
+	if filter.Limit > 0 {
+		query += " LIMIT ?"
+		args = append(args, filter.Limit)
+	}
+
+	// Execute query
+	rows, err := db.conn.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trading setups: %w", err)
+	}
+	defer rows.Close()
+
+	// Scan results
+	for rows.Next() {
+		setup := &models.TradingSetup{}
+		err := rows.Scan(
+			&setup.ID, &setup.Symbol, &setup.SetupType, &setup.Direction, &setup.QualityScore,
+			&setup.Confidence, &setup.Status, &setup.DetectedAt, &setup.ExpiresAt, &setup.LastUpdated,
+			&setup.CurrentPrice, &setup.EntryPrice, &setup.StopLoss, &setup.Target1, &setup.Target2,
+			&setup.Target3, &setup.RiskAmount, &setup.RewardPotential, &setup.RiskRewardRatio,
+			&setup.PriceActionScore, &setup.VolumeScore, &setup.TechnicalScore, &setup.RiskRewardScore,
+			&setup.Notes, &setup.IsManual, &setup.CreatedAt, &setup.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan trading setup: %w", err)
+		}
+		setups = append(setups, setup)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating trading setups: %w", err)
+	}
+
+	return setups, nil
+}
+
+// UpdateTradingSetup updates an existing trading setup
+func (db *Database) UpdateTradingSetup(setup *models.TradingSetup) error {
+	query := `
+		UPDATE trading_setups SET
+			symbol = ?,
+			setup_type = ?,
+			direction = ?,
+			quality_score = ?,
+			confidence = ?,
+			status = ?,
+			detected_at = ?,
+			expires_at = ?,
+			current_price = ?,
+			entry_price = ?,
+			stop_loss = ?,
+			target1 = ?,
+			target2 = ?,
+			target3 = ?,
+			risk_amount = ?,
+			reward_potential = ?,
+			risk_reward_ratio = ?,
+			price_action_score = ?,
+			volume_score = ?,
+			technical_score = ?,
+			risk_reward_score = ?,
+			notes = ?,
+			is_manual = ?,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`
+
+	_, err := db.conn.Exec(
+		query,
+		setup.Symbol, setup.SetupType, setup.Direction, setup.QualityScore, setup.Confidence, setup.Status,
+		setup.DetectedAt, setup.ExpiresAt, setup.CurrentPrice, setup.EntryPrice, setup.StopLoss,
+		setup.Target1, setup.Target2, setup.Target3, setup.RiskAmount, setup.RewardPotential, setup.RiskRewardRatio,
+		setup.PriceActionScore, setup.VolumeScore, setup.TechnicalScore, setup.RiskRewardScore, setup.Notes, setup.IsManual,
+		setup.ID,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update trading setup: %w", err)
+	}
+
+	return nil
+}
+
+// GetSetupChecklist retrieves the checklist for a trading setup
+func (db *Database) GetSetupChecklist(setupID int64) (*models.SetupChecklist, error) {
+	query := `
+		SELECT 
+			setup_id,
+			
+			-- Price Action Criteria
+			min_level_touches_completed, min_level_touches_points,
+			bounce_strength_completed, bounce_strength_points,
+			time_at_level_completed, time_at_level_points,
+			rejection_candle_completed, rejection_candle_points,
+			level_duration_completed, level_duration_points,
+			
+			-- Volume Criteria
+			volume_spike_completed, volume_spike_points,
+			volume_confirmation_completed, volume_confirmation_points,
+			approach_volume_completed, approach_volume_points,
+			vwap_relationship_completed, vwap_relationship_points,
+			relative_volume_completed, relative_volume_points,
+			
+			-- Technical Indicators
+			rsi_condition_completed, rsi_condition_points,
+			moving_average_completed, moving_average_points,
+			macd_signal_completed, macd_signal_points,
+			momentum_divergence_completed, momentum_divergence_points,
+			bollinger_bands_completed, bollinger_bands_points,
+			
+			-- Risk Management
+			stop_loss_defined_completed, stop_loss_defined_points,
+			risk_reward_ratio_completed, risk_reward_ratio_points,
+			position_size_completed, position_size_points,
+			entry_precision_completed, entry_precision_points,
+			exit_strategy_completed, exit_strategy_points,
+			
+			-- Summary
+			total_score, completed_items, total_items, completion_percent,
+			last_updated
+		FROM setup_checklists
+		WHERE setup_id = ?
+	`
+
+	checklist := &models.SetupChecklist{}
+
+	var minLevelTouchesCompleted, bounceStrengthCompleted, timeAtLevelCompleted, rejectionCandleCompleted, levelDurationCompleted bool
+	var minLevelTouchesPoints, bounceStrengthPoints, timeAtLevelPoints, rejectionCandlePoints, levelDurationPoints float64
+
+	var volumeSpikeCompleted, volumeConfirmationCompleted, approachVolumeCompleted, vwapRelationshipCompleted, relativeVolumeCompleted bool
+	var volumeSpikePoints, volumeConfirmationPoints, approachVolumePoints, vwapRelationshipPoints, relativeVolumePoints float64
+
+	var rsiConditionCompleted, movingAverageCompleted, macdSignalCompleted, momentumDivergenceCompleted, bollingerBandsCompleted bool
+	var rsiConditionPoints, movingAveragePoints, macdSignalPoints, momentumDivergencePoints, bollingerBandsPoints float64
+
+	var stopLossDefinedCompleted, riskRewardRatioCompleted, positionSizeCompleted, entryPrecisionCompleted, exitStrategyCompleted bool
+	var stopLossDefinedPoints, riskRewardRatioPoints, positionSizePoints, entryPrecisionPoints, exitStrategyPoints float64
+
+	err := db.conn.QueryRow(query, setupID).Scan(
+		&checklist.SetupID,
+
+		&minLevelTouchesCompleted, &minLevelTouchesPoints,
+		&bounceStrengthCompleted, &bounceStrengthPoints,
+		&timeAtLevelCompleted, &timeAtLevelPoints,
+		&rejectionCandleCompleted, &rejectionCandlePoints,
+		&levelDurationCompleted, &levelDurationPoints,
+
+		&volumeSpikeCompleted, &volumeSpikePoints,
+		&volumeConfirmationCompleted, &volumeConfirmationPoints,
+		&approachVolumeCompleted, &approachVolumePoints,
+		&vwapRelationshipCompleted, &vwapRelationshipPoints,
+		&relativeVolumeCompleted, &relativeVolumePoints,
+
+		&rsiConditionCompleted, &rsiConditionPoints,
+		&movingAverageCompleted, &movingAveragePoints,
+		&macdSignalCompleted, &macdSignalPoints,
+		&momentumDivergenceCompleted, &momentumDivergencePoints,
+		&bollingerBandsCompleted, &bollingerBandsPoints,
+
+		&stopLossDefinedCompleted, &stopLossDefinedPoints,
+		&riskRewardRatioCompleted, &riskRewardRatioPoints,
+		&positionSizeCompleted, &positionSizePoints,
+		&entryPrecisionCompleted, &entryPrecisionPoints,
+		&exitStrategyCompleted, &exitStrategyPoints,
+
+		&checklist.TotalScore, &checklist.CompletedItems, &checklist.TotalItems, &checklist.CompletionPercent,
+		&checklist.LastUpdated,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get setup checklist: %w", err)
+	}
+
+	// Set up the ChecklistItem structs
+	checklist.MinLevelTouches = models.ChecklistItem{
+		IsCompleted: minLevelTouchesCompleted,
+		Points:      minLevelTouchesPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.BounceStrength = models.ChecklistItem{
+		IsCompleted: bounceStrengthCompleted,
+		Points:      bounceStrengthPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.TimeAtLevel = models.ChecklistItem{
+		IsCompleted: timeAtLevelCompleted,
+		Points:      timeAtLevelPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.RejectionCandle = models.ChecklistItem{
+		IsCompleted: rejectionCandleCompleted,
+		Points:      rejectionCandlePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.LevelDuration = models.ChecklistItem{
+		IsCompleted: levelDurationCompleted,
+		Points:      levelDurationPoints,
+		MaxPoints:   5.0,
+	}
+
+	// Volume criteria
+	checklist.VolumeSpike = models.ChecklistItem{
+		IsCompleted: volumeSpikeCompleted,
+		Points:      volumeSpikePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.VolumeConfirmation = models.ChecklistItem{
+		IsCompleted: volumeConfirmationCompleted,
+		Points:      volumeConfirmationPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.ApproachVolume = models.ChecklistItem{
+		IsCompleted: approachVolumeCompleted,
+		Points:      approachVolumePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.VWAPRelationship = models.ChecklistItem{
+		IsCompleted: vwapRelationshipCompleted,
+		Points:      vwapRelationshipPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.RelativeVolume = models.ChecklistItem{
+		IsCompleted: relativeVolumeCompleted,
+		Points:      relativeVolumePoints,
+		MaxPoints:   5.0,
+	}
+
+	// Technical indicators
+	checklist.RSICondition = models.ChecklistItem{
+		IsCompleted: rsiConditionCompleted,
+		Points:      rsiConditionPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.MovingAverage = models.ChecklistItem{
+		IsCompleted: movingAverageCompleted,
+		Points:      movingAveragePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.MACDSignal = models.ChecklistItem{
+		IsCompleted: macdSignalCompleted,
+		Points:      macdSignalPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.MomentumDivergence = models.ChecklistItem{
+		IsCompleted: momentumDivergenceCompleted,
+		Points:      momentumDivergencePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.BollingerBands = models.ChecklistItem{
+		IsCompleted: bollingerBandsCompleted,
+		Points:      bollingerBandsPoints,
+		MaxPoints:   5.0,
+	}
+
+	// Risk management
+	checklist.StopLossDefined = models.ChecklistItem{
+		IsCompleted: stopLossDefinedCompleted,
+		Points:      stopLossDefinedPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.RiskRewardRatio = models.ChecklistItem{
+		IsCompleted: riskRewardRatioCompleted,
+		Points:      riskRewardRatioPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.PositionSize = models.ChecklistItem{
+		IsCompleted: positionSizeCompleted,
+		Points:      positionSizePoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.EntryPrecision = models.ChecklistItem{
+		IsCompleted: entryPrecisionCompleted,
+		Points:      entryPrecisionPoints,
+		MaxPoints:   5.0,
+	}
+
+	checklist.ExitStrategy = models.ChecklistItem{
+		IsCompleted: exitStrategyCompleted,
+		Points:      exitStrategyPoints,
+		MaxPoints:   5.0,
+	}
+
+	return checklist, nil
 }

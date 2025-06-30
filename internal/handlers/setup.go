@@ -15,12 +15,12 @@ import (
 
 // SetupHandler handles setup detection API endpoints
 type SetupHandler struct {
-	db           *database.DB
+	db           *database.Database
 	setupService *services.SetupDetectionService
 }
 
 // NewSetupHandler creates a new setup handler
-func NewSetupHandler(db *database.DB, setupService *services.SetupDetectionService) *SetupHandler {
+func NewSetupHandler(db *database.Database, setupService *services.SetupDetectionService) *SetupHandler {
 	return &SetupHandler{
 		db:           db,
 		setupService: setupService,

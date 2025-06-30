@@ -11,7 +11,6 @@ import (
 	"market-watch-go/internal/config"
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/handlers"
-	"market-watch-go/internal/models"
 	"market-watch-go/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -24,8 +23,9 @@ func main() {
 
 	// Parse command line flags
 	var (
-		configPath = flag.String("config", "configs/config.yaml", "Path to configuration file")
-		historical = flag.Int("historical", 0, "Collect historical data for N days (0 = disabled)")
+		configPath     = flag.String("config", "configs/config.yaml", "Path to configuration file")
+		historical     = flag.Int("historical", 0, "Collect historical data for N days (0 = disabled)")
+		resetWatchlist = flag.Bool("reset-watchlist", false, "Reset watchlist to config defaults")
 	)
 	flag.Parse()
 
@@ -66,50 +66,29 @@ func main() {
 		}
 	}
 
-	// Ensure default watchlist categories and stocks are present if missing
-	if len(cfg.WatchlistDefaults.Categories) > 0 {
-		log.Printf("Ensuring default watchlist categories and stocks from config.")
-		// Get all categories from DB (name->id)
-		dbCategories, err := db.GetWatchlistCategories()
+	// Handle watchlist initialization
+	if *resetWatchlist {
+		log.Printf("Resetting watchlist to config defaults...")
+		if len(cfg.WatchlistDefaults.Strategies) > 0 {
+			err := db.EnsureConfigStrategies(cfg.WatchlistDefaults.Strategies)
+			if err != nil {
+				log.Printf("Failed to reset watchlist strategies: %v", err)
+				os.Exit(1)
+			}
+		}
+	} else {
+		// Only apply defaults if database is empty
+		strategies, err := db.GetStrategies()
 		if err != nil {
-			log.Printf("Failed to fetch watchlist categories: %v", err)
+			log.Printf("Failed to check existing strategies: %v", err)
 			os.Exit(1)
 		}
-		catNameToID := make(map[string]int)
-		for _, c := range dbCategories {
-			catNameToID[c.Name] = c.ID
-		}
-		for _, catCfg := range cfg.WatchlistDefaults.Categories {
-			catID, ok := catNameToID[catCfg.Name]
-			if !ok {
-				cat := models.WatchlistCategory{
-					Name:  catCfg.Name,
-					Color: catCfg.Color,
-				}
-				createdCat, err := db.CreateWatchlistCategory(cat)
-				if err != nil {
-					log.Printf("Failed to create watchlist category '%s': %v", catCfg.Name, err)
-					continue
-				}
-				catID = createdCat.ID
-				catNameToID[catCfg.Name] = catID
-			}
-			for _, symbol := range catCfg.Stocks {
-				exists, err := db.WatchlistStockExists(symbol)
-				if err != nil {
-					log.Printf("Failed to check if stock '%s' exists: %v", symbol, err)
-					continue
-				}
-				if !exists {
-					stock := models.WatchlistStock{
-						Symbol:     symbol,
-						CategoryID: &catID,
-					}
-					_, err := db.AddWatchlistStock(stock)
-					if err != nil {
-						log.Printf("Failed to add stock '%s' to category '%s': %v", symbol, catCfg.Name, err)
-					}
-				}
+		if len(strategies) == 0 && len(cfg.WatchlistDefaults.Strategies) > 0 {
+			log.Printf("No strategies found in DB. Adding default strategies from config.")
+			err := db.EnsureConfigStrategies(cfg.WatchlistDefaults.Strategies)
+			if err != nil {
+				log.Printf("Failed to ensure default strategies: %v", err)
+				os.Exit(1)
 			}
 		}
 	}
@@ -171,6 +150,9 @@ func main() {
 	// Initialize Polygon EMA service
 	emaService := services.NewPolygonEMAService(cfg.Polygon.APIKey)
 
+	// Initialize stock service
+	stockService := services.NewStockService(db, polygonService, emaService)
+
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
 	priceHandler := handlers.NewPriceHandler(db, collectorService, polygonService)
@@ -181,7 +163,7 @@ func main() {
 	srHandler := handlers.NewSupportResistanceHandler(db, srService)
 	fallingWedgeHandler := handlers.NewFallingWedgeHandler(db, fallingWedgeService)
 	patternsHandler := handlers.NewPatternsHandler(db, patternService, hsService, fallingWedgeService)
-	watchlistHandler := handlers.NewWatchlistHandler(db)
+	watchlistHandler := handlers.NewWatchlistHandler(db, stockService)
 
 	// Polygon EMA handlers
 	polygonEMAHandler := handlers.PolygonEMAHandler(emaService)
@@ -373,23 +355,26 @@ func main() {
 		// Watchlist routes
 		watchlist := api.Group("/watchlist")
 		{
-			// Categories
-			watchlist.GET("/categories", watchlistHandler.GetCategories)
-			watchlist.POST("/categories", watchlistHandler.CreateCategory)
-			watchlist.PUT("/categories/:id", watchlistHandler.UpdateCategory)
-			watchlist.DELETE("/categories/:id", watchlistHandler.DeleteCategory)
+			// Strategies
+			watchlist.GET("/strategies", watchlistHandler.GetStrategies)
+			watchlist.POST("/strategies", watchlistHandler.CreateStrategy)
+			watchlist.PUT("/strategies/:id", watchlistHandler.UpdateStrategy)
+			watchlist.DELETE("/strategies/:id", watchlistHandler.DeleteStrategy)
+
+			// Backward compatibility routes (categories -> strategies)
+			watchlist.GET("/categories", watchlistHandler.GetStrategies)
+			watchlist.POST("/categories", watchlistHandler.CreateStrategy)
+			watchlist.PUT("/categories/:id", watchlistHandler.UpdateStrategy)
+			watchlist.DELETE("/categories/:id", watchlistHandler.DeleteStrategy)
 
 			// Stocks
 			watchlist.GET("/stocks", watchlistHandler.GetStocks)
 			watchlist.POST("/stocks", watchlistHandler.AddStock)
 			watchlist.PUT("/stocks/:id", watchlistHandler.UpdateStock)
-			watchlist.DELETE("/stocks/:id", watchlistHandler.DeleteStock)
-
-			// Summary
-			watchlist.GET("/summary", watchlistHandler.GetSummary)
+			watchlist.DELETE("/stocks/:id", watchlistHandler.RemoveStock)
 
 			// Refresh prices and EMAs for all stocks
-			watchlist.POST("/refresh", handlers.WatchlistRefreshHandler(db, emaService))
+			watchlist.POST("/refresh", handlers.WatchlistRefreshHandler(db, stockService))
 		}
 
 		// Polygon EMA endpoints

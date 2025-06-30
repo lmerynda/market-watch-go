@@ -11,14 +11,14 @@ import (
 
 // PatternDetectionService handles automatic pattern detection for multiple pattern types
 type PatternDetectionService struct {
-	db           *database.DB
+	db           *database.Database
 	taService    *TechnicalAnalysisService
 	hsService    *HeadShouldersDetectionService
 	emailService *EmailService
 }
 
 // NewPatternDetectionService creates a new pattern detection service
-func NewPatternDetectionService(db *database.DB, taService *TechnicalAnalysisService, hsService *HeadShouldersDetectionService, emailService *EmailService) *PatternDetectionService {
+func NewPatternDetectionService(db *database.Database, taService *TechnicalAnalysisService, hsService *HeadShouldersDetectionService, emailService *EmailService) *PatternDetectionService {
 	return &PatternDetectionService{
 		db:           db,
 		taService:    taService,

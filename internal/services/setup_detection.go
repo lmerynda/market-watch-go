@@ -11,14 +11,14 @@ import (
 
 // SetupDetectionService handles trading setup detection and scoring
 type SetupDetectionService struct {
-	db        *database.DB
+	db        *database.Database
 	taService *TechnicalAnalysisService
 	srService *SupportResistanceService
 	config    *models.SetupScoringConfig
 }
 
 // NewSetupDetectionService creates a new setup detection service
-func NewSetupDetectionService(db *database.DB, taService *TechnicalAnalysisService, srService *SupportResistanceService) *SetupDetectionService {
+func NewSetupDetectionService(db *database.Database, taService *TechnicalAnalysisService, srService *SupportResistanceService) *SetupDetectionService {
 	// Default configuration
 	config := &models.SetupScoringConfig{
 		HighQualityThreshold:   80.0,

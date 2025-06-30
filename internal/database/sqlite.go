@@ -22,7 +22,7 @@ type DB struct {
 func New(cfg *config.Config) (*DB, error) {
 	// Ensure data directory exists
 	dataDir := filepath.Dir(cfg.Database.Path)
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
@@ -72,6 +72,12 @@ func New(cfg *config.Config) (*DB, error) {
 	if err := db.CreateWatchlistTables(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to initialize watchlist tables: %w", err)
+	}
+
+	// Initialize strategy tables
+	if err := db.CreateStrategyTables(); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize strategy tables: %w", err)
 	}
 
 	log.Printf("Database initialized at %s", cfg.Database.Path)

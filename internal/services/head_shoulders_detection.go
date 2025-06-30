@@ -13,7 +13,7 @@ import (
 
 // HeadShouldersDetectionService handles head and shoulders pattern detection and monitoring
 type HeadShouldersDetectionService struct {
-	db           *database.DB
+	db           *database.Database
 	setupService *SetupDetectionService
 	taService    *TechnicalAnalysisService
 	emailService *EmailService
@@ -21,7 +21,7 @@ type HeadShouldersDetectionService struct {
 }
 
 // NewHeadShouldersDetectionService creates a new head and shoulders detection service
-func NewHeadShouldersDetectionService(db *database.DB, setupService *SetupDetectionService, taService *TechnicalAnalysisService, emailService *EmailService) *HeadShouldersDetectionService {
+func NewHeadShouldersDetectionService(db *database.Database, setupService *SetupDetectionService, taService *TechnicalAnalysisService, emailService *EmailService) *HeadShouldersDetectionService {
 	// Default configuration
 	config := &models.HeadShouldersConfig{
 		MinPatternDuration:   72 * time.Hour,  // 3 days minimum

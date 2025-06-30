@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"market-watch-go/internal/config"
-	"market-watch-go/internal/database"
 	"market-watch-go/internal/models"
+	"market-watch-go/internal/database"
 
 	"github.com/robfig/cron/v3"
 )
 
 type CollectorService struct {
-	db      *database.DB
+	db      *database.Database
 	polygon *PolygonService
 	cfg     *config.Config
 	cron    *cron.Cron
@@ -34,7 +34,7 @@ type CollectionStats struct {
 }
 
 // NewCollectorService creates a new data collector service
-func NewCollectorService(db *database.DB, polygon *PolygonService, cfg *config.Config) *CollectorService {
+func NewCollectorService(db *database.Database, polygon *PolygonService, cfg *config.Config) *CollectorService {
 	cronInstance := cron.New(cron.WithLocation(time.UTC))
 
 	return &CollectorService{

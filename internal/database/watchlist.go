@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"market-watch-go/internal/models"
@@ -60,10 +59,10 @@ func (db *Database) CreateWatchlistTables() error {
 
 // Watchlist Categories Operations
 
-func (db *Database) GetWatchlistCategories() ([]models.WatchlistCategory, error) {
+func (db *Database) GetWatchlistCategories() ([]models.Strategy, error) {
 	query := `
 		SELECT id, name, description, color, created_at, updated_at
-		FROM watchlist_categories
+		FROM strategies
 		ORDER BY name
 	`
 
@@ -73,33 +72,33 @@ func (db *Database) GetWatchlistCategories() ([]models.WatchlistCategory, error)
 	}
 	defer rows.Close()
 
-	var categories []models.WatchlistCategory
+	var strategies []models.Strategy
 	for rows.Next() {
-		var category models.WatchlistCategory
+		var strategy models.Strategy
 		err := rows.Scan(
-			&category.ID,
-			&category.Name,
-			&category.Description,
-			&category.Color,
-			&category.CreatedAt,
-			&category.UpdatedAt,
+			&strategy.ID,
+			&strategy.Name,
+			&strategy.Description,
+			&strategy.Color,
+			&strategy.CreatedAt,
+			&strategy.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		categories = append(categories, category)
+		strategies = append(strategies, strategy)
 	}
 
-	return categories, nil
+	return strategies, nil
 }
 
-func (db *Database) CreateWatchlistCategory(category models.WatchlistCategory) (*models.WatchlistCategory, error) {
+func (db *Database) CreateWatchlistCategory(strategy models.Strategy) (*models.Strategy, error) {
 	query := `
-		INSERT INTO watchlist_categories (name, description, color)
+		INSERT INTO strategies (name, description, color)
 		VALUES (?, ?, ?)
 	`
 
-	result, err := db.conn.Exec(query, category.Name, category.Description, category.Color)
+	result, err := db.conn.Exec(query, strategy.Name, strategy.Description, strategy.Color)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +108,11 @@ func (db *Database) CreateWatchlistCategory(category models.WatchlistCategory) (
 		return nil, err
 	}
 
-	category.ID = int(id)
-	category.CreatedAt = time.Now()
-	category.UpdatedAt = time.Now()
+	strategy.ID = int(id)
+	strategy.CreatedAt = time.Now()
+	strategy.UpdatedAt = time.Now()
 
-	return &category, nil
+	return &strategy, nil
 }
 
 func (db *Database) UpdateWatchlistCategory(id int, category models.WatchlistCategory) error {
@@ -143,35 +142,30 @@ func (db *Database) DeleteWatchlistCategory(id int) error {
 
 // Watchlist Stocks Operations
 
-func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock, error) {
+func (db *Database) GetWatchlistStocks(strategyID *int) ([]models.Stock, error) {
 	var query string
 	var args []interface{}
 
-	if categoryID != nil {
+	if strategyID != nil {
 		query = `
 			SELECT 
-				ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
-				ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
-				ws.added_at, ws.updated_at,
-				ws.ema_9, ws.ema_50, ws.ema_200,
-				wc.name as category_name, wc.color as category_color
-			FROM watchlist_stocks ws
-			LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
-			WHERE ws.category_id = ?
-			ORDER BY ws.symbol
+				s.id, s.symbol, s.name, s.notes,
+				s.price, s.change, s.change_percent, s.volume, s.market_cap,
+				s.added_at, s.updated_at, s.ema_9, s.ema_50, s.ema_200
+			FROM stocks s
+			INNER JOIN stock_strategies ss ON s.id = ss.stock_id
+			WHERE ss.strategy_id = ?
+			ORDER BY s.symbol
 		`
-		args = append(args, *categoryID)
+		args = append(args, *strategyID)
 	} else {
 		query = `
 			SELECT 
-				ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
-				ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
-				ws.added_at, ws.updated_at,
-				ws.ema_9, ws.ema_50, ws.ema_200,
-				wc.name as category_name, wc.color as category_color
-			FROM watchlist_stocks ws
-			LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
-			ORDER BY ws.symbol
+				s.id, s.symbol, s.name, s.notes,
+				s.price, s.change, s.change_percent, s.volume, s.market_cap,
+				s.added_at, s.updated_at, s.ema_9, s.ema_50, s.ema_200
+			FROM stocks s
+			ORDER BY s.symbol
 		`
 	}
 
@@ -181,18 +175,15 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 	}
 	defer rows.Close()
 
-	var stocks []models.WatchlistStock
+	var stocks []models.Stock
 	for rows.Next() {
-		var stock models.WatchlistStock
-		var categoryName, categoryColor sql.NullString
+		var stock models.Stock
 
 		err := rows.Scan(
 			&stock.ID,
 			&stock.Symbol,
 			&stock.Name,
-			&stock.CategoryID,
 			&stock.Notes,
-			&stock.Tags,
 			&stock.Price,
 			&stock.Change,
 			&stock.ChangePercent,
@@ -203,19 +194,17 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 			&stock.EMA9,
 			&stock.EMA50,
 			&stock.EMA200,
-			&categoryName,
-			&categoryColor,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		if categoryName.Valid {
-			stock.CategoryName = categoryName.String
+		// Load strategies for this stock
+		strategies, err := db.GetStockStrategies(stock.ID)
+		if err != nil {
+			return nil, err
 		}
-		if categoryColor.Valid {
-			stock.CategoryColor = categoryColor.String
-		}
+		stock.Strategies = strategies
 
 		stocks = append(stocks, stock)
 	}
@@ -223,39 +212,8 @@ func (db *Database) GetWatchlistStocks(categoryID *int) ([]models.WatchlistStock
 	return stocks, nil
 }
 
-func (db *Database) AddWatchlistStock(stock models.WatchlistStock) (*models.WatchlistStock, error) {
-	query := `
-		INSERT INTO watchlist_stocks (symbol, name, category_id, notes, tags, price, change, change_percent, volume, market_cap)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	result, err := db.conn.Exec(query,
-		strings.ToUpper(stock.Symbol),
-		stock.Name,
-		stock.CategoryID,
-		stock.Notes,
-		stock.Tags,
-		stock.Price,
-		stock.Change,
-		stock.ChangePercent,
-		stock.Volume,
-		stock.MarketCap,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	stock.ID = int(id)
-	stock.Symbol = strings.ToUpper(stock.Symbol)
-	stock.AddedAt = time.Now()
-	stock.UpdatedAt = time.Now()
-
-	return &stock, nil
+func (db *Database) AddWatchlistStock(stock models.Stock) (*models.Stock, error) {
+	return db.AddStock(stock)
 }
 
 func (db *Database) UpdateWatchlistStock(id int, stock models.WatchlistStock) error {
@@ -316,137 +274,10 @@ func (db *Database) DeleteWatchlistStock(id int) error {
 	return err
 }
 
-func (db *Database) GetWatchlistSummary() (*models.WatchlistSummary, error) {
-	summary := &models.WatchlistSummary{}
-
-	// Get total counts
-	countQuery := `
-		SELECT 
-			(SELECT COUNT(*) FROM watchlist_stocks) as total_stocks,
-			(SELECT COUNT(*) FROM watchlist_categories) as total_categories
-	`
-	err := db.conn.QueryRow(countQuery).Scan(&summary.TotalStocks, &summary.TotalCategories)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get categories
-	categories, err := db.GetWatchlistCategories()
-	if err != nil {
-		return nil, err
-	}
-	summary.Categories = categories
-
-	// Get recently added stocks (last 10)
-	recentQuery := `
-		SELECT 
-			ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
-			ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
-			ws.added_at, ws.updated_at,
-			wc.name as category_name, wc.color as category_color
-		FROM watchlist_stocks ws
-		LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
-		ORDER BY ws.added_at DESC
-		LIMIT 10
-	`
-	recentStocks, err := db.queryWatchlistStocks(recentQuery)
-	if err != nil {
-		return nil, err
-	}
-	summary.RecentlyAdded = recentStocks
-
-	// Get top gainers
-	gainersQuery := `
-		SELECT 
-			ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
-			ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
-			ws.added_at, ws.updated_at,
-			wc.name as category_name, wc.color as category_color
-		FROM watchlist_stocks ws
-		LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
-		WHERE ws.change_percent > 0
-		ORDER BY ws.change_percent DESC
-		LIMIT 5
-	`
-	gainers, err := db.queryWatchlistStocks(gainersQuery)
-	if err != nil {
-		return nil, err
-	}
-	summary.TopGainers = gainers
-
-	// Get top losers
-	losersQuery := `
-		SELECT 
-			ws.id, ws.symbol, ws.name, ws.category_id, ws.notes, ws.tags,
-			ws.price, ws.change, ws.change_percent, ws.volume, ws.market_cap,
-			ws.added_at, ws.updated_at,
-			wc.name as category_name, wc.color as category_color
-		FROM watchlist_stocks ws
-		LEFT JOIN watchlist_categories wc ON ws.category_id = wc.id
-		WHERE ws.change_percent < 0
-		ORDER BY ws.change_percent ASC
-		LIMIT 5
-	`
-	losers, err := db.queryWatchlistStocks(losersQuery)
-	if err != nil {
-		return nil, err
-	}
-	summary.TopLosers = losers
-
-	return summary, nil
-}
-
-// Helper function to query watchlist stocks
-func (db *Database) queryWatchlistStocks(query string, args ...interface{}) ([]models.WatchlistStock, error) {
-	rows, err := db.conn.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var stocks []models.WatchlistStock
-	for rows.Next() {
-		var stock models.WatchlistStock
-		var categoryName, categoryColor sql.NullString
-
-		err := rows.Scan(
-			&stock.ID,
-			&stock.Symbol,
-			&stock.Name,
-			&stock.CategoryID,
-			&stock.Notes,
-			&stock.Tags,
-			&stock.Price,
-			&stock.Change,
-			&stock.ChangePercent,
-			&stock.Volume,
-			&stock.MarketCap,
-			&stock.AddedAt,
-			&stock.UpdatedAt,
-			&categoryName,
-			&categoryColor,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if categoryName.Valid {
-			stock.CategoryName = categoryName.String
-		}
-		if categoryColor.Valid {
-			stock.CategoryColor = categoryColor.String
-		}
-
-		stocks = append(stocks, stock)
-	}
-
-	return stocks, nil
-}
-
 // WatchlistStockExists returns true if a stock with the given symbol exists in the watchlist
 func (db *Database) WatchlistStockExists(symbol string) (bool, error) {
 	var count int
-	err := db.conn.QueryRow("SELECT COUNT(1) FROM watchlist_stocks WHERE symbol = ?", strings.ToUpper(symbol)).Scan(&count)
+	err := db.conn.QueryRow("SELECT COUNT(1) FROM stocks WHERE symbol = ?", strings.ToUpper(symbol)).Scan(&count)
 	if err != nil {
 		return false, err
 	}

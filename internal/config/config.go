@@ -67,12 +67,12 @@ type EmailConfig struct {
 }
 
 type WatchlistDefaults struct {
-	Categories []WatchlistCategoryConfig `yaml:"categories"`
+	Strategies []WatchlistStrategyConfig `yaml:"strategies"`
 }
 
-type WatchlistCategoryConfig struct {
-	Name  string   `yaml:"name"`
-	Color string   `yaml:"color"`
+type WatchlistStrategyConfig struct {
+	Name   string   `yaml:"name"`
+	Color  string   `yaml:"color"`
 	Stocks []string `yaml:"stocks"`
 }
 

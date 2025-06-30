@@ -6,43 +6,45 @@ import (
 
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/models"
+	"market-watch-go/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
 // WatchlistHandler handles watchlist-related requests
 type WatchlistHandler struct {
-	db *database.Database
+	db           *database.Database
+	stockService *services.StockService
 }
 
 // NewWatchlistHandler creates a new watchlist handler
-func NewWatchlistHandler(db *database.Database) *WatchlistHandler {
-	return &WatchlistHandler{db: db}
+func NewWatchlistHandler(db *database.Database, stockService *services.StockService) *WatchlistHandler {
+	return &WatchlistHandler{db: db, stockService: stockService}
 }
 
-// Categories Endpoints
+// Strategy Endpoints
 
-// GetCategories returns all watchlist categories
-func (h *WatchlistHandler) GetCategories(c *gin.Context) {
-	categories, err := h.db.GetWatchlistCategories()
+// GetStrategies returns all watchlist strategies
+func (h *WatchlistHandler) GetStrategies(c *gin.Context) {
+	strategies, err := h.db.GetStrategies()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to fetch categories",
+			"error":   "Failed to fetch strategies",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"categories": categories,
-		"count":      len(categories),
+		"strategies": strategies,
+		"count":      len(strategies),
 	})
 }
 
-// CreateCategory creates a new watchlist category
-func (h *WatchlistHandler) CreateCategory(c *gin.Context) {
-	var category models.WatchlistCategory
-	if err := c.ShouldBindJSON(&category); err != nil {
+// CreateStrategy creates a new watchlist strategy
+func (h *WatchlistHandler) CreateStrategy(c *gin.Context) {
+	var strategy models.Strategy
+	if err := c.ShouldBindJSON(&strategy); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
 			"details": err.Error(),
@@ -51,46 +53,45 @@ func (h *WatchlistHandler) CreateCategory(c *gin.Context) {
 	}
 
 	// Validate required fields
-	if category.Name == "" {
+	if strategy.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Category name is required",
+			"error": "Strategy name is required",
 		})
 		return
 	}
 
 	// Set default color if not provided
-	if category.Color == "" {
-		category.Color = "#007bff"
+	if strategy.Color == "" {
+		strategy.Color = "#007bff"
 	}
 
-	createdCategory, err := h.db.CreateWatchlistCategory(category)
+	createdStrategy, err := h.db.CreateStrategy(strategy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to create category",
+			"error":   "Failed to create strategy",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message":  "Category created successfully",
-		"category": createdCategory,
+		"message":  "Strategy created successfully",
+		"strategy": createdStrategy,
 	})
 }
 
-// UpdateCategory updates an existing category
-func (h *WatchlistHandler) UpdateCategory(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+// UpdateStrategy updates an existing strategy
+func (h *WatchlistHandler) UpdateStrategy(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid category ID",
+			"error": "Invalid strategy ID",
 		})
 		return
 	}
 
-	var category models.WatchlistCategory
-	if err := c.ShouldBindJSON(&category); err != nil {
+	var strategy models.Strategy
+	if err := c.ShouldBindJSON(&strategy); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
 			"details": err.Error(),
@@ -98,61 +99,60 @@ func (h *WatchlistHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.UpdateWatchlistCategory(id, category); err != nil {
+	// Validate required fields
+	if strategy.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Strategy name is required",
+		})
+		return
+	}
+
+	// Set default color if not provided
+	if strategy.Color == "" {
+		strategy.Color = "#007bff"
+	}
+
+	if err := h.db.UpdateStrategy(id, strategy); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to update category",
+			"error":   "Failed to update strategy",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Category updated successfully",
+		"message": "Strategy updated successfully",
 	})
 }
 
-// DeleteCategory deletes a category
-func (h *WatchlistHandler) DeleteCategory(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+// DeleteStrategy deletes a strategy
+func (h *WatchlistHandler) DeleteStrategy(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid category ID",
+			"error": "Invalid strategy ID",
 		})
 		return
 	}
 
-	if err := h.db.DeleteWatchlistCategory(id); err != nil {
+	if err := h.db.DeleteStrategy(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete category",
+			"error":   "Failed to delete strategy",
 			"details": err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Category deleted successfully",
+		"message": "Strategy deleted successfully",
 	})
 }
 
 // Stocks Endpoints
 
-// GetStocks returns watchlist stocks, optionally filtered by category
+// GetStocks returns watchlist stocks
 func (h *WatchlistHandler) GetStocks(c *gin.Context) {
-	var categoryID *int
-	if categoryStr := c.Query("category_id"); categoryStr != "" {
-		id, err := strconv.Atoi(categoryStr)
-		if err != nil {
-			c.Error(err) // Attach error for middleware logging
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid category_id parameter",
-			})
-			return
-		}
-		categoryID = &id
-	}
-
-	stocks, err := h.db.GetWatchlistStocks(categoryID)
+	stocks, err := h.db.GetStocks()
 	if err != nil {
 		c.Error(err) // Attach error for middleware logging
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -170,7 +170,7 @@ func (h *WatchlistHandler) GetStocks(c *gin.Context) {
 
 // AddStock adds a new stock to the watchlist
 func (h *WatchlistHandler) AddStock(c *gin.Context) {
-	var stock models.WatchlistStock
+	var stock models.Stock
 	if err := c.ShouldBindJSON(&stock); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
@@ -187,7 +187,7 @@ func (h *WatchlistHandler) AddStock(c *gin.Context) {
 		return
 	}
 
-	addedStock, err := h.db.AddWatchlistStock(stock)
+	addedStock, err := h.db.AddStock(stock)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to add stock",
@@ -204,8 +204,7 @@ func (h *WatchlistHandler) AddStock(c *gin.Context) {
 
 // UpdateStock updates an existing stock
 func (h *WatchlistHandler) UpdateStock(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid stock ID",
@@ -213,7 +212,7 @@ func (h *WatchlistHandler) UpdateStock(c *gin.Context) {
 		return
 	}
 
-	var stock models.WatchlistStock
+	var stock models.Stock
 	if err := c.ShouldBindJSON(&stock); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request body",
@@ -222,12 +221,36 @@ func (h *WatchlistHandler) UpdateStock(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.UpdateWatchlistStock(id, stock); err != nil {
+	// Update only the notes field - other stock data comes from Polygon API
+	if err := h.db.UpdateStockNotes(id, stock.Notes); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to update stock",
+			"error":   "Failed to update stock notes",
 			"details": err.Error(),
 		})
 		return
+	}
+
+	// Handle strategy assignments if provided
+	if stock.Strategies != nil && len(stock.Strategies) > 0 {
+		// First, remove all existing strategy associations
+		if err := h.db.RemoveAllStockStrategies(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to update stock strategies",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		// Then add the new ones
+		for _, strategy := range stock.Strategies {
+			if err := h.db.AddStockToStrategy(id, strategy.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":   "Failed to add stock to strategy",
+					"details": err.Error(),
+				})
+				return
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -235,44 +258,25 @@ func (h *WatchlistHandler) UpdateStock(c *gin.Context) {
 	})
 }
 
-// DeleteStock removes a stock from the watchlist
-func (h *WatchlistHandler) DeleteStock(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid stock ID",
-		})
+// RemoveStock removes a stock from current strategy and deletes if no strategies remain
+func (h *WatchlistHandler) RemoveStock(c *gin.Context) {
+	stockID, _ := strconv.Atoi(c.Param("id"))
+	strategyID, _ := strconv.Atoi(c.Query("strategy_id"))
+
+	// Remove from specific strategy
+	if err := h.db.RemoveStockFromStrategy(stockID, strategyID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove from strategy"})
 		return
 	}
 
-	if err := h.db.DeleteWatchlistStock(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to delete stock",
-			"details": err.Error(),
-		})
-		return
+	// Check if stock has any remaining strategies
+	strategies, _ := h.db.GetStockStrategies(stockID)
+	if len(strategies) == 0 {
+		// Use stock service to delete stock
+		h.stockService.DeleteStock(stockID)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Stock deleted successfully",
-	})
-}
-
-// GetSummary returns watchlist summary statistics
-func (h *WatchlistHandler) GetSummary(c *gin.Context) {
-	summary, err := h.db.GetWatchlistSummary()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to fetch summary",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"summary": summary,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "Stock removed successfully"})
 }
 
 // Render watchlist page

@@ -12,13 +12,13 @@ import (
 
 // SupportResistanceService handles support and resistance level detection
 type SupportResistanceService struct {
-	db        *database.DB
+	db        *database.Database
 	taService *TechnicalAnalysisService
 	config    *models.SRDetectionConfig
 }
 
 // NewSupportResistanceService creates a new S/R detection service
-func NewSupportResistanceService(db *database.DB, taService *TechnicalAnalysisService) *SupportResistanceService {
+func NewSupportResistanceService(db *database.Database, taService *TechnicalAnalysisService) *SupportResistanceService {
 	// Default configuration
 	config := &models.SRDetectionConfig{
 		MinTouches:                3,

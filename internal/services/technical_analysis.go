@@ -13,7 +13,7 @@ import (
 
 // TechnicalAnalysisService provides technical analysis calculations
 type TechnicalAnalysisService struct {
-	db           *database.DB
+	db           *database.Database
 	cache        map[string]*models.TechnicalIndicators
 	cacheExpiry  map[string]time.Time
 	mutex        sync.RWMutex
@@ -36,7 +36,7 @@ type TechnicalAnalysisConfig struct {
 }
 
 // NewTechnicalAnalysisService creates a new technical analysis service
-func NewTechnicalAnalysisService(db *database.DB, config *TechnicalAnalysisConfig) *TechnicalAnalysisService {
+func NewTechnicalAnalysisService(db *database.Database, config *TechnicalAnalysisConfig) *TechnicalAnalysisService {
 	if config == nil {
 		config = &TechnicalAnalysisConfig{
 			CacheTimeout:    5 * time.Minute,
