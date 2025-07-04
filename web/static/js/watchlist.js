@@ -122,7 +122,7 @@ class WatchlistManager {
 
     // Add individual strategies
     this.strategies.forEach(strategy => {
-      const stockCount = this.stocks.filter(s => s.strategy_id === strategy.id).length;
+      const stockCount = strategy.stocks ? strategy.stocks.length : 0;
       const isActive = this.selectedStrategyId === strategy.id;
       
       html += `
@@ -207,7 +207,8 @@ class WatchlistManager {
 
     // Filter by strategy
     if (this.selectedStrategyId !== null) {
-      filteredStocks = filteredStocks.filter(stock => stock.strategy_id === this.selectedStrategyId);
+      const selectedStrategy = this.strategies.find(s => s.id === this.selectedStrategyId);
+      filteredStocks = selectedStrategy ? selectedStrategy.stocks : [];
     }
 
     // Filter by search term
@@ -221,6 +222,9 @@ class WatchlistManager {
     }
 
     // Sort stocks
+    if (!Array.isArray(filteredStocks)) {
+      filteredStocks = [];
+    }
     filteredStocks.sort((a, b) => {
       const { field, direction } = this.currentSort;
       let aVal = a[field] || '';
@@ -267,11 +271,13 @@ class WatchlistManager {
     const changeClass = stock.change > 0 ? 'price-positive' : stock.change < 0 ? 'price-negative' : 'price-neutral';
     const changeIcon = stock.change > 0 ? 'bi-arrow-up' : stock.change < 0 ? 'bi-arrow-down' : 'bi-dash';
     
-    const strategyBadge = stock.strategy_name ?
-      `<span class="category-badge" style="border-color: ${stock.strategy_color}; color: ${stock.strategy_color};">
-        ${stock.strategy_name}
-      </span>` :
-      '<span class="text-muted small">None</span>';
+    const strategyBadge = stock.strategies && stock.strategies.length > 0
+      ? stock.strategies.map(strategy =>
+          `<span class="category-badge" style="border-color: ${strategy.color}; color: ${strategy.color};">
+            ${strategy.name}
+          </span>`
+        ).join(' ')
+      : '<span class="text-muted small">No Strategy</span>';
 
     const tags = stock.tags ? 
       stock.tags.split(',').map(tag => 
