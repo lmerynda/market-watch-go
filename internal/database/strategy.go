@@ -407,3 +407,48 @@ func (db *Database) EnsureConfigStrategies(strategies []config.WatchlistStrategy
 	}
 	return nil
 }
+
+// InitializeData populates the database with strategies and stock associations from the configuration.
+func (db *Database) InitializeData(strategies []config.WatchlistStrategyConfig) error {
+	for _, strategyConfig := range strategies {
+		// Check if strategy exists
+		var strategyID int
+		err := db.conn.QueryRow("SELECT id FROM strategies WHERE name = ?", strategyConfig.Name).Scan(&strategyID)
+		if err == sql.ErrNoRows {
+			// Create strategy
+			strategy := models.Strategy{
+				Name:  strategyConfig.Name,
+				Color: strategyConfig.Color,
+			}
+			createdStrategy, err := db.CreateStrategy(strategy)
+			if err != nil {
+				return fmt.Errorf("failed to create strategy %s: %v", strategyConfig.Name, err)
+			}
+			strategyID = createdStrategy.ID
+		} else if err != nil {
+			return err
+		}
+
+		// Add stocks to strategy
+		for _, symbol := range strategyConfig.Stocks {
+			// Ensure stock exists
+			var stockID int
+			err := db.conn.QueryRow("SELECT id FROM stocks WHERE symbol = ?", strings.ToUpper(symbol)).Scan(&stockID)
+			if err == sql.ErrNoRows {
+				// Create stock
+				stock := models.Stock{Symbol: strings.ToUpper(symbol)}
+				createdStock, err := db.AddStock(stock)
+				if err != nil {
+					return fmt.Errorf("failed to create stock %s: %v", symbol, err)
+				}
+				stockID = createdStock.ID
+			} else if err != nil {
+				return err
+			}
+
+			// Add to strategy (ignore if already exists)
+			db.AddStockToStrategy(stockID, strategyID)
+		}
+	}
+	return nil
+}

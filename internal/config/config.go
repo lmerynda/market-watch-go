@@ -9,14 +9,14 @@ import (
 )
 
 type Config struct {
-	Server        ServerConfig        `yaml:"server"`
-	Database      DatabaseConfig      `yaml:"database"`
-	Polygon       PolygonConfig       `yaml:"polygon"`
-	Collection    CollectionConfig    `yaml:"collection"`
-	Logging       LoggingConfig       `yaml:"logging"`
-	DataRetention DataRetentionConfig `yaml:"data_retention"`
-	Email         EmailConfig         `yaml:"email"`
-	WatchlistDefaults WatchlistDefaults `yaml:"watchlist_defaults"`
+	Server            ServerConfig        `yaml:"server"`
+	Database          DatabaseConfig      `yaml:"database"`
+	Polygon           PolygonConfig       `yaml:"polygon"`
+	Collection        CollectionConfig    `yaml:"collection"`
+	Logging           LoggingConfig       `yaml:"logging"`
+	DataRetention     DataRetentionConfig `yaml:"data_retention"`
+	Email             EmailConfig         `yaml:"email"`
+	WatchlistDefaults WatchlistDefaults   `yaml:"watchlist_defaults"`
 }
 
 type ServerConfig struct {
@@ -88,6 +88,7 @@ func Load(configPath string) (*Config, error) {
 	if err := validate(cfg); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
+
 	return cfg, nil
 }
 

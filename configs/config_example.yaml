@@ -45,7 +45,7 @@ email:
   enabled: true
 
 watchlist_defaults:
-  categories:
+  strategies:
     - name: "long long"
       color: "#1e90ff"
       stocks:

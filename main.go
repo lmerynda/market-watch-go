@@ -70,7 +70,7 @@ func main() {
 	if *resetWatchlist {
 		log.Printf("Resetting watchlist to config defaults...")
 		if len(cfg.WatchlistDefaults.Strategies) > 0 {
-			err := db.EnsureConfigStrategies(cfg.WatchlistDefaults.Strategies)
+			err := db.InitializeData(cfg.WatchlistDefaults.Strategies)
 			if err != nil {
 				log.Printf("Failed to reset watchlist strategies: %v", err)
 				os.Exit(1)
@@ -85,7 +85,7 @@ func main() {
 		}
 		if len(strategies) == 0 && len(cfg.WatchlistDefaults.Strategies) > 0 {
 			log.Printf("No strategies found in DB. Adding default strategies from config.")
-			err := db.EnsureConfigStrategies(cfg.WatchlistDefaults.Strategies)
+			err := db.InitializeData(cfg.WatchlistDefaults.Strategies)
 			if err != nil {
 				log.Printf("Failed to ensure default strategies: %v", err)
 				os.Exit(1)
