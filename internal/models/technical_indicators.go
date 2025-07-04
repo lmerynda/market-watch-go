@@ -14,9 +14,7 @@ type TechnicalIndicators struct {
 	MACD          float64   `json:"macd" db:"macd_line"`
 	MACDSignal    float64   `json:"macd_signal" db:"macd_signal"`
 	MACDHistogram float64   `json:"macd_histogram" db:"macd_histogram"`
-	SMA20         float64   `json:"sma_20" db:"sma_20"`
-	SMA50         float64   `json:"sma_50" db:"sma_50"`
-	SMA200        float64   `json:"sma_200" db:"sma_200"`
+	
 	EMA20         float64   `json:"ema_20" db:"ema_20"`
 	EMA50         float64   `json:"ema_50" db:"ema_50"`
 	VWAP          float64   `json:"vwap" db:"vwap"`
@@ -50,9 +48,7 @@ type RSIData struct {
 
 // MovingAverageData represents moving average data
 type MovingAverageData struct {
-	SMA20  float64 `json:"sma_20"`
-	SMA50  float64 `json:"sma_50"`
-	SMA200 float64 `json:"sma_200"`
+	
 	EMA20  float64 `json:"ema_20"`
 	EMA50  float64 `json:"ema_50"`
 }
@@ -178,9 +174,9 @@ func (ti *TechnicalIndicators) GetOverallSentiment(currentPrice float64) string 
 	}
 
 	// Moving average scoring
-	if currentPrice > ti.EMA20 && ti.EMA20 > ti.SMA50 {
+	if currentPrice > ti.EMA20 && ti.EMA20 > ti.EMA50 {
 		score += 1 // Bullish trend
-	} else if currentPrice < ti.EMA20 && ti.EMA20 < ti.SMA50 {
+	} else if currentPrice < ti.EMA20 && ti.EMA20 < ti.EMA50 {
 		score -= 1 // Bearish trend
 	}
 

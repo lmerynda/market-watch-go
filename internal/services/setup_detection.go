@@ -484,17 +484,6 @@ func (sds *SetupDetectionService) evaluateTechnicalCriteria(checklist *models.Se
 		checklist.RSICondition.AutoDetected = true
 	}
 
-	// Moving Average
-	if setup.Direction == "bullish" && setup.CurrentPrice > indicators.SMA20 {
-		checklist.MovingAverage.IsCompleted = true
-		checklist.MovingAverage.Points = 5
-		checklist.MovingAverage.AutoDetected = true
-	} else if setup.Direction == "bearish" && setup.CurrentPrice < indicators.SMA20 {
-		checklist.MovingAverage.IsCompleted = true
-		checklist.MovingAverage.Points = 5
-		checklist.MovingAverage.AutoDetected = true
-	}
-
 	// MACD Signal
 	if setup.Direction == "bullish" && indicators.MACDHistogram > 0 {
 		checklist.MACDSignal.IsCompleted = true

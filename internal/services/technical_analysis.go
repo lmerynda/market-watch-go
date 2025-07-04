@@ -170,19 +170,6 @@ func (tas *TechnicalAnalysisService) GetIndicators(symbol string) (*models.Techn
 		indicators.MACDHistogram = histogram
 	}
 
-	// Calculate Moving Averages
-	if len(closes) >= 20 {
-		indicators.SMA20 = tas.calculateSMA(closes, 20)
-		indicators.EMA20 = tas.calculateEMA(closes, 20)
-	}
-	if len(closes) >= 50 {
-		indicators.SMA50 = tas.calculateSMA(closes, 50)
-		indicators.EMA50 = tas.calculateEMA(closes, 50)
-	}
-	if len(closes) >= 200 {
-		indicators.SMA200 = tas.calculateSMA(closes, 200)
-	}
-
 	// Calculate VWAP
 	if len(closes) >= 20 {
 		indicators.VWAP = tas.calculateVWAP(highs, lows, closes, volumes, 20)
@@ -397,11 +384,9 @@ func (tas *TechnicalAnalysisService) GetIndicatorsSummary(symbol string) (*model
 			Histogram: indicators.MACDHistogram,
 		},
 		MovingAverages: &models.MovingAverageData{
-			SMA20:  indicators.SMA20,
-			SMA50:  indicators.SMA50,
-			SMA200: indicators.SMA200,
-			EMA20:  indicators.EMA20,
-			EMA50:  indicators.EMA50,
+
+			EMA20: indicators.EMA20,
+			EMA50: indicators.EMA50,
 		},
 		BollingerBands: &models.BollingerBandsData{
 			Upper:  indicators.BBUpper,
@@ -565,8 +550,8 @@ func (tas *TechnicalAnalysisService) UpdateIndicatorsForSymbol(symbol string) er
 		return fmt.Errorf("failed to calculate indicators for %s: %w", symbol, err)
 	}
 
-	log.Printf("Updated technical indicators for %s: RSI14=%.2f, MACD=%.4f, SMA20=%.2f",
-		symbol, indicators.RSI14, indicators.MACD, indicators.SMA20)
+	log.Printf("Updated technical indicators for %s: RSI14=%.2f, MACD=%.4f",
+		symbol, indicators.RSI14, indicators.MACD)
 
 	return nil
 }

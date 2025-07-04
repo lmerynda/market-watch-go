@@ -20,9 +20,7 @@ func (db *DB) CreateTechnicalIndicatorsTable() error {
 			macd_line REAL,
 			macd_signal REAL,
 			macd_histogram REAL,
-			sma_20 REAL,
-			sma_50 REAL,
-			sma_200 REAL,
+			
 			ema_20 REAL,
 			ema_50 REAL,
 			vwap REAL,
@@ -62,9 +60,9 @@ func (db *DB) InsertTechnicalIndicators(indicators *models.TechnicalIndicators) 
 	query := `
 		INSERT OR REPLACE INTO technical_indicators 
 		(symbol, timestamp, rsi_14, rsi_30, macd_line, macd_signal, macd_histogram,
-		 sma_20, sma_50, sma_200, ema_20, ema_50, vwap, volume_ratio,
+		 ema_20, ema_50, vwap, volume_ratio,
 		 bb_upper, bb_middle, bb_lower, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := db.conn.Exec(query,
@@ -75,9 +73,6 @@ func (db *DB) InsertTechnicalIndicators(indicators *models.TechnicalIndicators) 
 		indicators.MACD,
 		indicators.MACDSignal,
 		indicators.MACDHistogram,
-		indicators.SMA20,
-		indicators.SMA50,
-		indicators.SMA200,
 		indicators.EMA20,
 		indicators.EMA50,
 		indicators.VWAP,
@@ -99,7 +94,7 @@ func (db *DB) InsertTechnicalIndicators(indicators *models.TechnicalIndicators) 
 func (db *DB) GetLatestTechnicalIndicators(symbol string) (*models.TechnicalIndicators, error) {
 	query := `
 		SELECT id, symbol, timestamp, rsi_14, rsi_30, macd_line, macd_signal, macd_histogram,
-		       sma_20, sma_50, sma_200, ema_20, ema_50, vwap, volume_ratio,
+		       ema_20, ema_50, vwap, volume_ratio,
 		       bb_upper, bb_middle, bb_lower, created_at
 		FROM technical_indicators 
 		WHERE symbol = ?
@@ -119,9 +114,7 @@ func (db *DB) GetLatestTechnicalIndicators(symbol string) (*models.TechnicalIndi
 		&indicators.MACD,
 		&indicators.MACDSignal,
 		&indicators.MACDHistogram,
-		&indicators.SMA20,
-		&indicators.SMA50,
-		&indicators.SMA200,
+
 		&indicators.EMA20,
 		&indicators.EMA50,
 		&indicators.VWAP,
@@ -146,7 +139,7 @@ func (db *DB) GetLatestTechnicalIndicators(symbol string) (*models.TechnicalIndi
 func (db *DB) GetTechnicalIndicators(filter *models.IndicatorFilter) ([]*models.TechnicalIndicators, error) {
 	query := `
 		SELECT id, symbol, timestamp, rsi_14, rsi_30, macd_line, macd_signal, macd_histogram,
-		       sma_20, sma_50, sma_200, ema_20, ema_50, vwap, volume_ratio,
+		       ema_20, ema_50, vwap, volume_ratio,
 		       bb_upper, bb_middle, bb_lower, created_at
 		FROM technical_indicators 
 		WHERE symbol = ? AND timestamp BETWEEN ? AND ?
@@ -183,9 +176,7 @@ func (db *DB) GetTechnicalIndicators(filter *models.IndicatorFilter) ([]*models.
 			&ind.MACD,
 			&ind.MACDSignal,
 			&ind.MACDHistogram,
-			&ind.SMA20,
-			&ind.SMA50,
-			&ind.SMA200,
+
 			&ind.EMA20,
 			&ind.EMA50,
 			&ind.VWAP,
