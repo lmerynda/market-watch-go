@@ -1,12 +1,30 @@
 {
-  "mcpServers": {
-    "sqlite": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-sqlite",
-        "--db-path",
-        "/workspaces/market-watch-go/data/market-watch.db"
-      ]
+    "mcpServers": {
+        "sqlite": {
+            "command": "uvx",
+            "args": [
+                "mcp-server-sqlite",
+                "--db-path",
+                "/workspaces/market-watch-go/data/market-watch.db"
+            ]
+        },
+        "context7": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@upstash/context7-mcp"
+            ],
+            "env": {
+                "DEFAULT_MINIMUM_TOKENS": ""
+            }
+        },
+        "filesystem": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "/workspaces"
+            ]
+        }
     }
-  }
 }

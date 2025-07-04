@@ -27,6 +27,7 @@ func main() {
 		historical     = flag.Int("historical", 0, "Collect historical data for N days (0 = disabled)")
 		resetWatchlist = flag.Bool("reset-watchlist", false, "Reset watchlist to config defaults")
 	)
+
 	flag.Parse()
 
 	// Load configuration
@@ -51,6 +52,28 @@ func main() {
 	}
 	defer db.Close()
 
+	// Load configuration
+	cfg, err = config.Load(*configPath)
+	if err != nil {
+		log.Printf("Failed to load configuration: %v", err)
+		log.Printf("\n" +
+			"🔑 SETUP REQUIRED:\n" +
+			"Please set your Polygon.io API key in configs/config.yaml under polygon.api_key\n" +
+			"💡 Get a free API key at: https://polygon.io/\n" +
+			"   1. Sign up for a free account\n" +
+			"   2. Go to Dashboard -> API Keys\n" +
+			"   3. Copy your API key\n")
+		os.Exit(1)
+	}
+
+	// Initialize database
+	db, err = database.New(cfg)
+	if err != nil {
+		log.Printf("Failed to initialize database: %v", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
 	// Ensure default watched symbols are present if watchlist is empty
 	watched, err := db.GetWatchedSymbols()
 	if err != nil {
@@ -66,7 +89,7 @@ func main() {
 		}
 	}
 
-	// Handle watchlist initialization
+	// Ensure strategies and stocks are properly associated in the database if resetWatchlist is set
 	if *resetWatchlist {
 		log.Printf("Resetting watchlist to config defaults...")
 		if len(cfg.WatchlistDefaults.Strategies) > 0 {

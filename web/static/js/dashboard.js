@@ -1305,10 +1305,6 @@ class MarketWatchDashboard {
     }
     
     async removeSymbol(symbol) {
-        if (!confirm(`Are you sure you want to remove ${symbol} from tracking?`)) {
-            return;
-        }
-        
         console.log(`➖ Removing symbol: ${symbol}`);
         
         try {

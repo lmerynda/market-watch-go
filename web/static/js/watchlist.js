@@ -323,11 +323,15 @@ class WatchlistManager {
                     title="Edit stock">
               <i class="bi bi-pencil"></i>
             </button>
-            <button class="btn btn-outline-danger btn-sm" 
-                    onclick="event.stopPropagation(); window.watchlist.deleteStock(${stock.id})"
-                    title="Remove from watchlist">
-              <i class="bi bi-trash"></i>
-            </button>
+            ${
+              this.selectedStrategyId !== null
+                ? `<button class="btn btn-outline-danger btn-sm"
+                     onclick="event.stopPropagation(); window.watchlist.deleteStock(${stock.id})"
+                     title="Remove from watchlist">
+                     <i class="bi bi-trash"></i>
+                   </button>`
+                : ""
+            }
           </div>
         </td>
       </tr>
@@ -512,13 +516,17 @@ class WatchlistManager {
   }
 
   async deleteStock(id) {
+    if (this.selectedStrategyId === null) {
+      this.showError("Stocks cannot be removed from the 'All Strategies' list.");
+      return;
+    }
+
     const stock = this.stocks.find(s => s.id === id);
     if (!stock) return;
 
-    if (!confirm(`Remove ${stock.symbol} from watchlist?`)) return;
 
     try {
-      const response = await fetch(`/api/watchlist/stocks/${id}`, {
+      const response = await fetch(`/api/watchlist/strategies/${this.selectedStrategyId}/stocks/${id}`, {
         method: "DELETE"
       });
 
@@ -528,6 +536,14 @@ class WatchlistManager {
       }
 
       this.showSuccess(`${stock.symbol} removed from watchlist`);
+
+      // Remove stock from associated strategies
+      const strategy = this.strategies.find(s => s.id === this.selectedStrategyId);
+      if (strategy) {
+        strategy.stocks = strategy.stocks.filter(s => s.id !== id);
+      }
+
+      await this.loadStrategies();
       await this.loadStocks();
       
     } catch (error) {
