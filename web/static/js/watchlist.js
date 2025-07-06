@@ -194,7 +194,10 @@ class WatchlistManager {
       }
       const data = await response.json();
       console.log("Loaded stocks:", data);
-      this.stocks = data.stocks || [];
+      this.stocks = data.stocks.map(stock => ({
+        ...stock,
+        strategies: stock.strategies || []
+      })) || [];
       this.filterAndDisplayStocks();
     } catch (error) {
       console.error("Failed to load stocks:", error);
@@ -203,46 +206,53 @@ class WatchlistManager {
   }
 
   filterAndDisplayStocks() {
-    let filteredStocks = this.stocks;
-
-    // Filter by strategy
-    if (this.selectedStrategyId !== null) {
-      const selectedStrategy = this.strategies.find(s => s.id === this.selectedStrategyId);
-      filteredStocks = selectedStrategy ? selectedStrategy.stocks : [];
-    }
-
-    // Filter by search term
-    if (this.searchTerm) {
-      filteredStocks = filteredStocks.filter(stock => 
-        stock.symbol.toLowerCase().includes(this.searchTerm) ||
-        (stock.name && stock.name.toLowerCase().includes(this.searchTerm)) ||
-        (stock.notes && stock.notes.toLowerCase().includes(this.searchTerm)) ||
-        (stock.tags && stock.tags.toLowerCase().includes(this.searchTerm))
-      );
-    }
-
-    // Sort stocks
-    if (!Array.isArray(filteredStocks)) {
-      filteredStocks = [];
-    }
-    filteredStocks.sort((a, b) => {
-      const { field, direction } = this.currentSort;
-      let aVal = a[field] || '';
-      let bVal = b[field] || '';
-
-      if (typeof aVal === 'string') {
-        aVal = aVal.toLowerCase();
-        bVal = bVal.toLowerCase();
+      let filteredStocks = this.stocks;
+      let selectedStrategyDetails = null;
+  
+      // Filter by strategy
+      if (this.selectedStrategyId !== null) {
+          const selectedStrategy = this.strategies.find(s => s.id === this.selectedStrategyId);
+          if (selectedStrategy) {
+              filteredStocks = selectedStrategy.stocks.map(stock => ({
+                  ...stock,
+                  strategies: this.strategies.filter(strategy => strategy.stocks.some(s => s.id === stock.id))
+              }));
+              selectedStrategyDetails = selectedStrategy;
+          }
       }
-
-      if (direction === 'asc') {
-        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      } else {
-        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+  
+      // Filter by search term
+      if (this.searchTerm) {
+          filteredStocks = filteredStocks.filter(stock =>
+              stock.symbol.toLowerCase().includes(this.searchTerm) ||
+              (stock.name && stock.name.toLowerCase().includes(this.searchTerm)) ||
+              (stock.notes && stock.notes.toLowerCase().includes(this.searchTerm)) ||
+              (stock.tags && stock.tags.toLowerCase().includes(this.searchTerm))
+          );
       }
-    });
-
-    this.displayStocks(filteredStocks);
+  
+      // Sort stocks
+      if (!Array.isArray(filteredStocks)) {
+          filteredStocks = [];
+      }
+      filteredStocks.sort((a, b) => {
+          const { field, direction } = this.currentSort;
+          let aVal = a[field] || '';
+          let bVal = b[field] || '';
+  
+          if (typeof aVal === 'string') {
+              aVal = aVal.toLowerCase();
+              bVal = bVal.toLowerCase();
+          }
+  
+          if (direction === 'asc') {
+              return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+          } else {
+              return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+          }
+      });
+  
+      this.displayStocks(filteredStocks, selectedStrategyDetails);
   }
 
   displayStocks(stocks) {
@@ -271,13 +281,14 @@ class WatchlistManager {
     const changeClass = stock.change > 0 ? 'price-positive' : stock.change < 0 ? 'price-negative' : 'price-neutral';
     const changeIcon = stock.change > 0 ? 'bi-arrow-up' : stock.change < 0 ? 'bi-arrow-down' : 'bi-dash';
     
+    console.log("Stock data:", stock);
     const strategyBadge = stock.strategies && stock.strategies.length > 0
       ? stock.strategies.map(strategy =>
           `<span class="category-badge" style="border-color: ${strategy.color}; color: ${strategy.color};">
             ${strategy.name}
           </span>`
         ).join(' ')
-      : '<span class="text-muted small">No Strategy</span>';
+      : '<span class="text-muted small">No associated strategies</span>';
 
     const tags = stock.tags ? 
       stock.tags.split(',').map(tag => 

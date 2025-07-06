@@ -35,6 +35,18 @@ func (h *WatchlistHandler) GetStrategies(c *gin.Context) {
 		return
 	}
 
+	for i, strategy := range strategies {
+		stocks, err := h.db.GetStocksByStrategy(strategy.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to fetch stocks for strategy",
+				"details": err.Error(),
+			})
+			return
+		}
+		strategies[i].Stocks = stocks
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"strategies": strategies,
 		"count":      len(strategies),

@@ -10,6 +10,7 @@ type Strategy struct {
 	Color       string    `json:"color" db:"color"` // Hex color for UI
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	Stocks      []Stock   `json:"stocks,omitempty"`
 }
 
 // Stock represents a centralized stock in the watchlist
