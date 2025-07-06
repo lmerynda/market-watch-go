@@ -387,7 +387,13 @@ class WatchlistManager {
 
   openAddStockModal() {
     document.getElementById("add-stock-form").reset();
-    const modal = new bootstrap.Modal(document.getElementById("add-stock-modal"));
+    const modalElement = document.getElementById("add-stock-modal");
+    const modal = new bootstrap.Modal(modalElement);
+    modalElement.addEventListener("hidden.bs.modal", () => {
+        document.body.classList.remove("modal-open");
+        const backdrop = document.querySelector(".modal-backdrop");
+        if (backdrop) backdrop.remove();
+    });
     modal.show();
   }
 
