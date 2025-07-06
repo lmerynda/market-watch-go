@@ -274,7 +274,38 @@ class WatchlistManager {
     }
 
     const html = stocks.map(stock => this.createStockRow(stock)).join('');
+    const addRowHtml = `
+      <tr>
+        <td class="text-center">
+          <button class="btn btn-primary btn-sm" id="add-symbol-btn">
+            <i class="bi bi-plus-circle"></i> Add
+          </button>
+        </td>
+        <td colspan="11">
+          <div>
+            <input type="text" id="add-symbol-input" class="form-control d-inline-block w-25" placeholder="Ticker (e.g., AAPL)" />
+          </div>
+        </td>
+      </tr>
+    `;
     tbody.innerHTML = html;
+    if (this.selectedStrategyId !== null) {
+      tbody.innerHTML += addRowHtml;
+    }
+    
+    // Add event listener for the "Add" button
+    const addSymbolBtn = document.getElementById("add-symbol-btn");
+    if (addSymbolBtn) {
+      addSymbolBtn.addEventListener("click", () => {
+        const symbolInput = document.getElementById("add-symbol-input");
+        const symbol = symbolInput.value.trim().toUpperCase();
+        if (!symbol) {
+          this.showError("Symbol cannot be empty");
+          return;
+        }
+        this.addSymbolToStrategy(symbol);
+      });
+    }
   }
 
   createStockRow(stock) {
