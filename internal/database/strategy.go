@@ -140,6 +140,14 @@ func (db *Database) UpdateStrategy(id int, strategy models.Strategy) error {
 	_, err := db.conn.Exec(query, strategy.Name, strategy.Description, strategy.Color, id)
 	return err
 }
+func (db *Database) StrategyExists(id int) (bool, error) {
+	var count int
+	err := db.conn.QueryRow("SELECT COUNT(1) FROM strategies WHERE id = ?", id).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
 
 // DeleteStrategy deletes a strategy and removes all associations
 func (db *Database) DeleteStrategy(id int) error {
@@ -233,26 +241,67 @@ func (db *Database) GetStocksByStrategy(strategyID int) ([]models.Stock, error) 
 }
 
 func (db *Database) AddStock(stock models.Stock) (*models.Stock, error) {
+	// Check if the stock already exists
+	existingStock, err := db.GetStockBySymbol(stock.Symbol)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to check for existing stock: %v", err)
+	}
+
+	// If stock exists, just add strategies to it
+	if existingStock != nil {
+		for _, strategy := range stock.Strategies {
+			err := db.AddStockToStrategy(existingStock.ID, strategy.ID)
+			if err != nil {
+				// Ignore unique constraint errors, as the association may already exist
+				if !strings.Contains(err.Error(), "UNIQUE constraint failed") {
+					return nil, fmt.Errorf("failed to add stock to strategy: %v", err)
+				}
+			}
+		}
+		return db.GetStockBySymbol(stock.Symbol) // Return the updated stock
+	}
+
+	// If stock doesn't exist, create it and then add strategies
+	tx, err := db.conn.Begin()
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		INSERT INTO stocks (symbol, name, notes, price, change, change_percent, volume, market_cap)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
-
-	result, err := db.conn.Exec(query,
+	result, err := tx.Exec(query,
 		strings.ToUpper(stock.Symbol), stock.Name, stock.Notes,
 		stock.Price, stock.Change, stock.ChangePercent,
 		stock.Volume, stock.MarketCap,
 	)
 	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
 	stock.ID = int(id)
+
+	// Add strategies
+	for _, strategy := range stock.Strategies {
+		_, err := tx.Exec("INSERT INTO stock_strategies (stock_id, strategy_id) VALUES (?, ?)", stock.ID, strategy.ID)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	stock.Symbol = strings.ToUpper(stock.Symbol)
 	stock.AddedAt = time.Now()
 	stock.UpdatedAt = time.Now()

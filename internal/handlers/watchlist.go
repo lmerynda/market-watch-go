@@ -7,6 +7,7 @@ import (
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/models"
 	"market-watch-go/internal/services"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -197,6 +198,31 @@ func (h *WatchlistHandler) AddStock(c *gin.Context) {
 			"error": "Stock symbol is required",
 		})
 		return
+	}
+
+	// Validate strategy existence
+	if len(stock.Strategies) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "At least one strategy ID must be provided",
+		})
+		return
+	}
+
+	for _, strategy := range stock.Strategies {
+		exists, err := h.db.StrategyExists(strategy.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Failed to validate strategy existence",
+				"details": err.Error(),
+			})
+			return
+		}
+		if !exists {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Strategy with ID %d does not exist", strategy.ID),
+			})
+			return
+		}
 	}
 
 	addedStock, err := h.db.AddStock(stock)
