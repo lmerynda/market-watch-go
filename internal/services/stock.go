@@ -24,7 +24,7 @@ func NewStockService(db *database.Database, polygonService *PolygonService, emaS
 // RefreshAllStocks refreshes price and EMA data for all stocks
 func (ss *StockService) RefreshAllStocks() error {
 	log.Printf("[STOCK_SERVICE] Starting stock refresh...")
-	
+
 	stocks, err := ss.db.GetStocks()
 	if err != nil {
 		return err

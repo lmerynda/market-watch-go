@@ -11,7 +11,7 @@ import (
 )
 
 // PolygonEMAService wraps the official Polygon Go client for EMA queries
-// You must set the API key in config.yaml
+// NOTE: The project now targets Massive.com APIs; keep API key in config.yaml
 
 type PolygonEMAService struct {
 	client *polygon.Client
@@ -19,7 +19,7 @@ type PolygonEMAService struct {
 
 func NewPolygonEMAService(apiKey string) *PolygonEMAService {
 	if apiKey == "" {
-		log.Fatal("Polygon API key is required for PolygonEMAService. Please set it in config.yaml.")
+		log.Fatal("Massive.com API key is required for PolygonEMAService. Please set it in config.yaml.")
 	}
 	return &PolygonEMAService{
 		client: polygon.New(apiKey),

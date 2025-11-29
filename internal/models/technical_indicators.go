@@ -14,15 +14,15 @@ type TechnicalIndicators struct {
 	MACD          float64   `json:"macd" db:"macd_line"`
 	MACDSignal    float64   `json:"macd_signal" db:"macd_signal"`
 	MACDHistogram float64   `json:"macd_histogram" db:"macd_histogram"`
-	
-	EMA20         float64   `json:"ema_20" db:"ema_20"`
-	EMA50         float64   `json:"ema_50" db:"ema_50"`
-	VWAP          float64   `json:"vwap" db:"vwap"`
-	VolumeRatio   float64   `json:"volume_ratio" db:"volume_ratio"`
-	BBUpper       float64   `json:"bb_upper" db:"bb_upper"`
-	BBMiddle      float64   `json:"bb_middle" db:"bb_middle"`
-	BBLower       float64   `json:"bb_lower" db:"bb_lower"`
-	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+
+	EMA20       float64   `json:"ema_20" db:"ema_20"`
+	EMA50       float64   `json:"ema_50" db:"ema_50"`
+	VWAP        float64   `json:"vwap" db:"vwap"`
+	VolumeRatio float64   `json:"volume_ratio" db:"volume_ratio"`
+	BBUpper     float64   `json:"bb_upper" db:"bb_upper"`
+	BBMiddle    float64   `json:"bb_middle" db:"bb_middle"`
+	BBLower     float64   `json:"bb_lower" db:"bb_lower"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 }
 
 // TechnicalIndicatorsResponse represents the API response for technical indicators
@@ -48,9 +48,8 @@ type RSIData struct {
 
 // MovingAverageData represents moving average data
 type MovingAverageData struct {
-	
-	EMA20  float64 `json:"ema_20"`
-	EMA50  float64 `json:"ema_50"`
+	EMA20 float64 `json:"ema_20"`
+	EMA50 float64 `json:"ema_50"`
 }
 
 // BollingerBandsData represents Bollinger Bands data

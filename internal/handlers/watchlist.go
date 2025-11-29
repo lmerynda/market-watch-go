@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"fmt"
 	"market-watch-go/internal/database"
 	"market-watch-go/internal/models"
 	"market-watch-go/internal/services"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
 )

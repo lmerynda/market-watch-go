@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"market-watch-go/internal/config"
-	"market-watch-go/internal/models"
 	"market-watch-go/internal/database"
+	"market-watch-go/internal/models"
 
 	"github.com/robfig/cron/v3"
 )
@@ -201,10 +201,10 @@ func (cs *CollectorService) collectVolumeData(symbol string) (int, error) {
 		return 0, fmt.Errorf("failed to get latest volume aggregates: %w", err)
 	}
 
-	log.Printf("Received %d raw volume data points from Polygon for %s", len(data), symbol)
+	log.Printf("Received %d raw volume data points from upstream API for %s", len(data), symbol)
 
 	if len(data) == 0 {
-		log.Printf("WARNING: No volume data available from Polygon API for %s", symbol)
+		log.Printf("WARNING: No volume data available from upstream API for %s", symbol)
 		return 0, nil
 	}
 
@@ -245,10 +245,10 @@ func (cs *CollectorService) collectPriceData(symbol string) (int, error) {
 		return 0, fmt.Errorf("failed to get latest price aggregates: %w", err)
 	}
 
-	log.Printf("Received %d raw price data points from Polygon for %s", len(data), symbol)
+	log.Printf("Received %d raw price data points from upstream API for %s", len(data), symbol)
 
 	if len(data) == 0 {
-		log.Printf("WARNING: No price data available from Polygon API for %s", symbol)
+		log.Printf("WARNING: No price data available from upstream API for %s", symbol)
 		return 0, nil
 	}
 

@@ -38,6 +38,10 @@
 2. **Get API key**: Visit [polygon.io](https://polygon.io/), sign up, go to Dashboard → API Keys
 3. **Verify API key**: Make sure there are no extra spaces or quotes around the key
 
+1. **Edit .env file**: Replace `your_massive_api_key_here` with your actual API key
+2. **Get API key**: Visit [www.massive.com](https://www.massive.com/), sign up, go to Dashboard → API Keys
+3. **Verify API key**: Make sure there are no extra spaces or quotes around the key
+
 ### 🌐 Port Already in Use
 
 **Symptoms**: "bind: address already in use" error

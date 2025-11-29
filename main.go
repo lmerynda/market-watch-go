@@ -36,8 +36,8 @@ func main() {
 		log.Printf("Failed to load configuration: %v", err)
 		log.Printf("\n" +
 			"🔑 SETUP REQUIRED:\n" +
-			"Please set your Polygon.io API key in configs/config.yaml under polygon.api_key\n" +
-			"💡 Get a free API key at: https://polygon.io/\n" +
+			"Please set your Massive.com API key in configs/config.yaml under polygon.api_key\n" +
+			"💡 Get a free API key at: https://www.massive.com/\n" +
 			"   1. Sign up for a free account\n" +
 			"   2. Go to Dashboard -> API Keys\n" +
 			"   3. Copy your API key\n")
@@ -58,8 +58,8 @@ func main() {
 		log.Printf("Failed to load configuration: %v", err)
 		log.Printf("\n" +
 			"🔑 SETUP REQUIRED:\n" +
-			"Please set your Polygon.io API key in configs/config.yaml under polygon.api_key\n" +
-			"💡 Get a free API key at: https://polygon.io/\n" +
+			"Please set your Massive.com API key in configs/config.yaml under polygon.api_key\n" +
+			"💡 Get a free API key at: https://www.massive.com/\n" +
 			"   1. Sign up for a free account\n" +
 			"   2. Go to Dashboard -> API Keys\n" +
 			"   3. Copy your API key\n")
@@ -116,12 +116,12 @@ func main() {
 		}
 	}
 
-	// Initialize Polygon service
+	// Initialize upstream market data service (previously Polygon)
 	polygonService := services.NewPolygonService(cfg)
 
-	// Validate Polygon API key
+	// Validate upstream API key (Massive.com)
 	if err := polygonService.ValidateAPIKey(); err != nil {
-		log.Printf("Failed to validate Polygon API key: %v", err)
+		log.Printf("Failed to validate upstream API key: %v", err)
 		os.Exit(1)
 	}
 
@@ -175,6 +175,12 @@ func main() {
 
 	// Initialize stock service
 	stockService := services.NewStockService(db, polygonService, emaService)
+
+	// Initialize Massive service for option aggregates (upstream)
+	massiveService := services.NewMassiveService(cfg)
+
+	// Option aggregates handler (very static endpoint)
+	optionHandler := handlers.NewOptionHandler(massiveService)
 
 	// Initialize handlers
 	volumeHandler := handlers.NewVolumeHandler(db, collectorService, polygonService, patternService)
@@ -403,6 +409,10 @@ func main() {
 		// Polygon EMA endpoints
 		api.GET("/polygon/ema", polygonEMAHandler)
 		api.GET("/polygon/ema/batch", polygonEMABatchHandler)
+
+		// Static option aggregates endpoint for COIN 11/14/2025 265C
+		// GET /api/options/coin-2025-11-14-265C
+		api.GET("/options/coin-2025-11-14-265C", optionHandler.GetCOINCallAggregates)
 	}
 
 	// Start server

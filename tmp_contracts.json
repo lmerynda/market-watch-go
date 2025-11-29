@@ -1,0 +1,17 @@
+{
+  "results": [
+    {
+      "cfi": "OCASPS",
+      "contract_type": "call",
+      "exercise_style": "american",
+      "expiration_date": "2025-11-14",
+      "primary_exchange": "BATO",
+      "shares_per_contract": 100,
+      "strike_price": 265,
+      "ticker": "O:COIN251114C00265000",
+      "underlying_ticker": "COIN"
+    }
+  ],
+  "status": "OK",
+  "request_id": "fa8eea3a1a404b520d7512dd0efb91b1"
+}

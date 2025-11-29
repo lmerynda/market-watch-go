@@ -1,6 +1,6 @@
 # Market Watch Go - Volume Tracker
 
-A real-time stock volume tracking web application similar to unusualwhales.com functionality. This application fetches trading volume data from Polygon.io API and displays it in interactive charts.
+A real-time stock volume tracking web application similar to unusualwhales.com functionality. This application fetches trading volume data from an upstream market data API (previously Polygon.io; now configured to use Massive.com) and displays it in interactive charts.
 
 ---
 
@@ -9,7 +9,7 @@ A real-time stock volume tracking web application similar to unusualwhales.com f
 - **SMA (Simple Moving Average) is deprecated.**
 - All moving average calculations and watchlist fields now use EMA (9, 50, 200) instead of SMA.
 - The database schema and API have been updated to reflect this change.
-- New endpoints for querying EMA values directly from Polygon.io:
+- New endpoints for querying EMA values directly from the upstream API (Polygon/previous provider compatibility maintained):
   - `GET /api/polygon/ema?symbol=TSLA&window=9` (single window)
   - `GET /api/polygon/ema/batch?symbol=TSLA&windows=9,50,200` (multiple windows)
 
@@ -30,13 +30,13 @@ A real-time stock volume tracking web application similar to unusualwhales.com f
 - **Backend**: Go with Gin web framework
 - **Database**: SQLite for local data storage
 - **Frontend**: HTML5, Bootstrap 5, Chart.js
-- **Data Source**: Polygon.io REST API
+- **Data Source**: Massive.com REST API (configured as upstream data provider)
 - **Scheduling**: Cron-based automated data collection
 
 ## Prerequisites
 
 - Go 1.19 or later
-- Polygon.io API key (free tier available)
+- Massive.com API key (free tier available)
 - Modern web browser
 
 ## Installation
@@ -56,9 +56,9 @@ A real-time stock volume tracking web application similar to unusualwhales.com f
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and add your Polygon.io API key:
+   Edit `.env` and add your Massive.com API key:
    ```
-   POLYGON_API_KEY=your_polygon_api_key_here
+   MASSIVE_API_KEY=your_massive_api_key_here
    ```
    
    **Note**: The application automatically loads the `.env` file - no need to source it manually!
@@ -74,7 +74,7 @@ The application uses a YAML configuration file at `configs/config.yaml`. Key set
 
 - **Server**: Port, host, timeouts
 - **Database**: SQLite path and connection settings
-- **Polygon API**: Base URL, timeout, retry settings
+- **Upstream API**: Base URL, timeout, retry settings (configured for Massive.com)
 - **Collection**: Data fetching interval, tracked symbols, market hours
 - **Data Retention**: How long to keep historical data
 
@@ -194,7 +194,7 @@ CREATE TABLE volume_data (
 
 ## Error Handling
 
-- **API Failures**: Graceful degradation when Polygon API is unavailable
+- **API Failures**: Graceful degradation when the upstream market data API is unavailable
 - **Rate Limiting**: Automatic delays to respect API limits
 - **Database Errors**: Comprehensive error logging and recovery
 - **Network Issues**: Retry logic with exponential backoff
@@ -209,11 +209,11 @@ The `/api/health` endpoint provides comprehensive health information:
 {
   "status": "ok",
   "timestamp": "2025-05-31T10:00:00Z",
-  "services": {
-    "database": {"status": "ok"},
-    "polygon": {"status": "ok"},
-    "collector": {"status": "ok"}
-  }
+      "services": {
+      "database": {"status": "ok"},
+      "upstream": {"status": "ok"},
+      "collector": {"status": "ok"}
+   }
 }
 ```
 
@@ -281,7 +281,7 @@ go build -o bin/market-watch cmd/server/main.go
 ### Common Issues
 
 1. **API Key Invalid**
-   - Verify your Polygon.io API key is correct
+   - Verify your Massive.com API key is correct
    - Check if you have sufficient API quota
 
 2. **Database Permission Issues**

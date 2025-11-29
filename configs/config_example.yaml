@@ -11,8 +11,8 @@ database:
   conn_max_lifetime: "5m"
 
 polygon:
-  api_key: "${POLYGON_API_KEY}"
-  base_url: "https://api.polygon.io"
+  api_key: "${MASSIVE_API_KEY}"
+  base_url: "https://api.massive.com"
   timeout: "30s"
   retry_attempts: 3
 

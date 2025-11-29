@@ -40,7 +40,7 @@ type DashboardSummary struct {
 	CollectionMode string        `json:"collection_mode"` // "24/7" to indicate continuous collection
 }
 
-// PolygonAggregateResponse represents the response from Polygon.io aggregates API
+// PolygonAggregateResponse represents the response from the upstream aggregates API (originally Polygon.io)
 type PolygonAggregateResponse struct {
 	Ticker       string             `json:"ticker"`
 	QueryCount   int                `json:"queryCount"`
@@ -52,7 +52,7 @@ type PolygonAggregateResponse struct {
 	Count        int                `json:"count"`
 }
 
-// PolygonAggregate represents a single aggregate data point from Polygon.io
+// PolygonAggregate represents a single aggregate data point from the upstream aggregates API
 type PolygonAggregate struct {
 	Open      float64 `json:"o"`  // Open price
 	High      float64 `json:"h"`  // High price

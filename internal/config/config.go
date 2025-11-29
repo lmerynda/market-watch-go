@@ -106,7 +106,7 @@ func loadFromYAML(cfg *Config, configPath string) error {
 
 func validate(cfg *Config) error {
 	if cfg.Polygon.APIKey == "" || cfg.Polygon.APIKey == "your_polygon_api_key_here" {
-		return fmt.Errorf("polygon API key is required. Please set POLYGON_API_KEY environment variable or update the config file. Get your free API key at https://polygon.io/")
+		return fmt.Errorf("Massive.com API key is required. Please set MASSIVE_API_KEY environment variable or update the config file. Get your API key at https://www.massive.com/")
 	}
 
 	if cfg.Server.Port <= 0 || cfg.Server.Port > 65535 {
