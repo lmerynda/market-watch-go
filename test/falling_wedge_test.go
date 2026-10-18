@@ -90,7 +90,8 @@ func main() {
 
 func analyzePattern(priceData []TestPriceData, config *FallingWedgeConfig) {
 	fmt.Println("🔍 FALLING WEDGE DETECTION ANALYSIS")
-	fmt.Println("=====================================\n")
+	fmt.Println("=====================================")
+	fmt.Println()
 
 	// Step 1: Check minimum data requirement
 	fmt.Printf("✅ Step 1: Data Requirements\n")

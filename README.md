@@ -35,7 +35,7 @@ A real-time stock volume tracking web application similar to unusualwhales.com f
 
 ## Prerequisites
 
-- Go 1.19 or later
+- Go 1.26 or later
 - Polygon.io API key (free tier available)
 - Modern web browser
 
