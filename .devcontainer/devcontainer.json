@@ -5,7 +5,7 @@
     // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
     "image": "mcr.microsoft.com/devcontainers/go:2.3.3-1.27-bookworm",
     "features": {
-        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/docker-in-docker:4": {},
         "ghcr.io/warrenbuckley/codespace-features/sqlite:1": {},
         "ghcr.io/devcontainers/features/node:1": {},
         "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
